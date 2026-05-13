@@ -92,7 +92,7 @@ export default function Dashboard() {
       </Head>
       <style>{`
         *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-        body { background:#06080f; color:#e2e4ed; font-family:'DM Sans',sans-serif; min-height:100vh; }
+        body { background:#06080f; color:#ffffff; font-family:'DM Sans',sans-serif; min-height:100vh; }
 
         .header {
           display:flex; align-items:center; justify-content:space-between;
@@ -112,45 +112,45 @@ export default function Dashboard() {
         .brand-name {
           font-family:'Playfair Display', serif;
           font-size:15px; font-style:italic;
-          color:rgba(200,215,235,0.6);
+          color:#ffffff;
           letter-spacing:0.5px;
         }
 
         .nav-tabs { display:flex; gap:2px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:3px; }
-        .nav-tab { padding:5px 16px; border:none; background:transparent; color:#3a4258; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; letter-spacing:0.5px; text-transform:uppercase; }
+        .nav-tab { padding:5px 16px; border:none; background:transparent; color:rgba(255,255,255,0.5); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; letter-spacing:0.5px; text-transform:uppercase; }
         .nav-tab.active { background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); }
         .nav-tab.owner { color:#f59e0b; }
         .nav-tab.owner.active { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.2); color:#f59e0b; }
 
-        .user-chip { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:4px 14px 4px 4px; font-size:12px; font-weight:600; color:#8090a8; }
+        .user-chip { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:4px 14px 4px 4px; font-size:12px; font-weight:600; color:#ffffff; }
         .user-avatar-wrap { width:26px; height:26px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.08); }
         .user-avatar { width:100%; height:100%; object-fit:cover; display:block; border:none; }
 
         .content { padding:24px; max-width:1280px; margin:0 auto; }
 
         .period-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-        .page-title { font-family:'Playfair Display',serif; font-size:20px; font-style:italic; color:rgba(200,215,235,0.5); }
+        .page-title { font-family:'Playfair Display',serif; font-size:20px; font-style:italic; color:#ffffff; }
         .pills { display:flex; gap:2px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:7px; padding:3px; }
-        .pill { padding:4px 14px; border:none; background:transparent; color:#3a4258; font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; text-transform:uppercase; letter-spacing:0.5px; }
+        .pill { padding:4px 14px; border:none; background:transparent; color:rgba(255,255,255,0.5); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; text-transform:uppercase; letter-spacing:0.5px; }
         .pill.active { background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); }
 
         .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
         .stat-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:18px 20px; position:relative; overflow:hidden; }
         .stat-card::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(37,99,235,0.15),transparent); }
-        .stat-label { font-size:10px; font-weight:600; letter-spacing:1.5px; color:#2a3248; text-transform:uppercase; margin-bottom:10px; }
-        .stat-value { font-family:'DM Mono',monospace; font-size:28px; color:#e2e4ed; line-height:1; margin-bottom:4px; }
+        .stat-label { font-size:10px; font-weight:600; letter-spacing:1.5px; color:rgba(255,255,255,0.5); text-transform:uppercase; margin-bottom:10px; }
+        .stat-value { font-family:'DM Mono',monospace; font-size:28px; color:#ffffff; line-height:1; margin-bottom:4px; }
         .stat-value.blue { color:#60a5fa; }
-        .stat-sub { font-size:11px; color:#1e2840; font-family:'DM Mono',monospace; }
+        .stat-sub { font-size:11px; color:rgba(255,255,255,0.45); font-family:'DM Mono',monospace; }
 
         .card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:20px; margin-bottom:14px; }
         .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-        .card-title { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#2a3248; }
+        .card-title { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.5); }
 
         .bar-chart { display:flex; align-items:flex-end; gap:4px; height:120px; }
         .bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; cursor:pointer; }
         .bar { width:100%; background:rgba(37,99,235,0.2); border-radius:3px 3px 0 0; min-height:2px; transition:background 0.2s; }
         .bar-wrap:hover .bar { background:rgba(96,165,250,0.5); }
-        .bar-lbl { font-size:8px; color:#1e2840; font-family:'DM Mono',monospace; white-space:nowrap; }
+        .bar-lbl { font-size:8px; color:rgba(255,255,255,0.45); font-family:'DM Mono',monospace; white-space:nowrap; }
 
         .heatmap-grid { display:grid; grid-template-columns:repeat(53,1fr); gap:2px; margin-bottom:14px; }
         .hm-cell { aspect-ratio:1; border-radius:2px; background:rgba(255,255,255,0.03); cursor:pointer; transition:transform 0.1s; }
@@ -160,46 +160,46 @@ export default function Dashboard() {
         .hm-cell.l3 { background:rgba(59,130,246,0.55); }
         .hm-cell.l4 { background:rgba(96,165,250,0.82); }
         .hm-stats { display:flex; gap:32px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.04); }
-        .hm-stat-label { font-size:10px; color:#2a3248; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
-        .hm-stat-value { font-family:'DM Mono',monospace; font-size:20px; color:#e2e4ed; }
-        .hm-stat-sub { font-size:10px; color:#1e2840; }
+        .hm-stat-label { font-size:10px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+        .hm-stat-value { font-family:'DM Mono',monospace; font-size:20px; color:#ffffff; }
+        .hm-stat-sub { font-size:10px; color:rgba(255,255,255,0.3); }
 
-        .tooltip { position:fixed; background:#0d1020; border:1px solid rgba(37,99,235,0.3); border-radius:8px; padding:8px 12px; font-size:11px; font-family:'DM Mono',monospace; color:#e2e4ed; pointer-events:none; z-index:9999; white-space:nowrap; box-shadow:0 4px 24px rgba(0,0,0,0.6); }
-        .tooltip-date { color:#3a4258; font-size:10px; margin-bottom:3px; }
+        .tooltip { position:fixed; background:#0d1020; border:1px solid rgba(37,99,235,0.3); border-radius:8px; padding:8px 12px; font-size:11px; font-family:'DM Mono',monospace; color:#ffffff; pointer-events:none; z-index:9999; white-space:nowrap; box-shadow:0 4px 24px rgba(0,0,0,0.6); }
+        .tooltip-date { color:rgba(255,255,255,0.6); font-size:10px; margin-bottom:3px; }
         .tooltip-amount { color:#60a5fa; font-weight:500; }
 
         .records-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
         .rec-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:16px 18px; }
-        .rec-label { font-size:10px; color:#2a3248; letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
-        .rec-badge { display:inline-block; font-size:9px; font-family:'DM Mono',monospace; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.15); color:#2a4080; padding:2px 7px; border-radius:4px; margin-bottom:8px; }
-        .rec-value { font-family:'DM Mono',monospace; font-size:24px; color:#e2e4ed; }
-        .rec-sub { font-size:10px; color:#1e2840; margin-top:3px; }
+        .rec-label { font-size:10px; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+        .rec-badge { display:inline-block; font-size:9px; font-family:'DM Mono',monospace; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.15); color:rgba(255,255,255,0.45); padding:2px 7px; border-radius:4px; margin-bottom:8px; }
+        .rec-value { font-family:'DM Mono',monospace; font-size:24px; color:#ffffff; }
+        .rec-sub { font-size:10px; color:rgba(255,255,255,0.5); margin-top:3px; }
 
-        .section-label { font-size:10px; font-weight:700; letter-spacing:2px; color:#2a3248; text-transform:uppercase; margin-bottom:10px; }
+        .section-label { font-size:10px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.7); text-transform:uppercase; margin-bottom:10px; }
         .deal-row { display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
         .deal-row:last-child { border-bottom:none; }
-        .deal-date { font-size:12px; color:#3a4258; }
+        .deal-date { font-size:12px; color:rgba(255,255,255,0.65); }
         .deal-amount { font-family:'DM Mono',monospace; font-size:13px; font-weight:500; color:#60a5fa; }
 
         .lb-header-row { display:flex; align-items:center; padding:8px 20px; border-bottom:1px solid rgba(255,255,255,0.05); gap:12px; }
-        .lb-header-text { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:#2a3248; }
+        .lb-header-text { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.6); }
         .lb-row { display:flex; align-items:center; padding:11px 20px; border-bottom:1px solid rgba(255,255,255,0.03); gap:12px; transition:background 0.15s; }
         .lb-row:last-child { border-bottom:none; }
         .lb-row:hover { background:rgba(37,99,235,0.04); }
         .lb-row.you { background:rgba(37,99,235,0.07); border-left:2px solid rgba(37,99,235,0.5); }
-        .lb-rank { font-family:'DM Mono',monospace; font-size:12px; color:#2a3248; width:28px; text-align:center; flex-shrink:0; }
-        .lb-avatar-wrap { width:28px; height:28px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; color:#2a3248; }
+        .lb-rank { font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.5); width:28px; text-align:center; flex-shrink:0; }
+        .lb-avatar-wrap { width:28px; height:28px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.5); }
         .lb-avatar-wrap img { width:100%; height:100%; object-fit:cover; display:block; border:none; }
-        .lb-name { flex:1; font-size:13px; font-weight:500; color:#c0cce0; }
+        .lb-name { flex:1; font-size:13px; font-weight:500; color:#ffffff; }
         .you-badge { font-size:9px; font-weight:700; background:rgba(37,99,235,0.12); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); padding:1px 6px; border-radius:3px; margin-left:8px; letter-spacing:0.5px; }
-        .lb-deals { font-size:11px; color:#2a3248; margin-right:12px; font-family:'DM Mono',monospace; }
-        .lb-total { font-family:'DM Mono',monospace; font-size:13px; color:#e2e4ed; font-weight:500; }
-        .hidden-rows { text-align:center; padding:8px; font-size:11px; color:#1e2840; border-bottom:1px solid rgba(255,255,255,0.03); }
+        .lb-deals { font-size:11px; color:rgba(255,255,255,0.5); margin-right:12px; font-family:'DM Mono',monospace; }
+        .lb-total { font-family:'DM Mono',monospace; font-size:13px; color:#ffffff; font-weight:500; }
+        .hidden-rows { text-align:center; padding:8px; font-size:11px; color:rgba(255,255,255,0.4); border-bottom:1px solid rgba(255,255,255,0.03); }
 
         .agency-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
         .agency-role-badge { font-size:10px; font-weight:700; background:rgba(245,158,11,0.08); color:#f59e0b; border:1px solid rgba(245,158,11,0.2); padding:3px 10px; border-radius:4px; letter-spacing:1px; text-transform:uppercase; margin-top:6px; display:inline-block; }
         .agency-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-        .agency-select { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:7px; color:#8090a8; font-family:'DM Sans',sans-serif; font-size:12px; padding:6px 12px; cursor:pointer; outline:none; }
+        .agency-select { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:7px; color:#ffffff; font-family:'DM Sans',sans-serif; font-size:12px; padding:6px 12px; cursor:pointer; outline:none; }
         .agency-select option { background:#0d1020; }
         .agency-stat-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
 
@@ -217,7 +217,7 @@ export default function Dashboard() {
         <div className="tooltip" style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}>
           <div className="tooltip-date">{tooltip.date}</div>
           <div className="tooltip-amount">{tooltip.amount}</div>
-          {tooltip.deals > 0 && <div style={{color:'#3a4258',fontSize:10,marginTop:2}}>{tooltip.deals} deal{tooltip.deals!==1?'s':''}</div>}
+          {tooltip.deals > 0 && <div style={{color:'rgba(255,255,255,0.4)',fontSize:10,marginTop:2}}>{tooltip.deals} deal{tooltip.deals!==1?'s':''}</div>}
         </div>
       )}
 
@@ -293,7 +293,7 @@ export default function Dashboard() {
                 <span className="deal-amount">{fmt(parseFloat(d.amount))}</span>
               </div>
             ))}
-            {deals.length === 0 && <div style={{padding:'20px 0',textAlign:'center',color:'#3a4258',fontSize:13}}>No deals yet</div>}
+            {deals.length === 0 && <div style={{padding:'20px 0',textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13}}>No deals yet</div>}
           </div>
         </div>
       )}
@@ -349,7 +349,7 @@ export default function Dashboard() {
             </div>
           </div>
           {agencyLoading ? (
-            <div style={{textAlign:'center',padding:'60px 0',color:'#3a4258',fontSize:13}}>Loading agency data...</div>
+            <div style={{textAlign:'center',padding:'60px 0',color:'rgba(255,255,255,0.4)',fontSize:13}}>Loading agency data...</div>
           ) : agencyData && !agencyData.error ? (
             <>
               <div className="agency-stat-grid">
@@ -368,7 +368,7 @@ export default function Dashboard() {
               </div>
             </>
           ) : (
-            <div style={{textAlign:'center',padding:'60px 0',color:'#3a4258',fontSize:13}}>
+            <div style={{textAlign:'center',padding:'60px 0',color:'rgba(255,255,255,0.4)',fontSize:13}}>
               {agencyData?.error || 'No data available'}
             </div>
           )}
@@ -458,14 +458,14 @@ function Leaderboard({ data, currentUser }) {
       {contextRows.map(u=><Row key={u.discord_id} u={u} />)}
       {showContext && hiddenAfter>0 && <div className="hidden-rows">— {hiddenAfter} more —</div>}
       {!showContext && data.slice(3).map(u=><Row key={u.discord_id} u={u} />)}
-      {data.length===0 && <div style={{padding:'24px',textAlign:'center',color:'#3a4258',fontSize:13}}>No data yet</div>}
+      {data.length===0 && <div style={{padding:'24px',textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13}}>No data yet</div>}
     </>
   );
 }
 
 function AgencyLeaderboard({ data, currentUser }) {
   const medals = ['👑','🥈','🥉'];
-  if (!data.length) return <div style={{padding:'24px',textAlign:'center',color:'#3a4258',fontSize:13}}>No agents found for this period</div>;
+  if (!data.length) return <div style={{padding:'24px',textAlign:'center',color:'rgba(255,255,255,0.4)',fontSize:13}}>No agents found for this period</div>;
   return (
     <>
       {data.map((u,i)=>(
