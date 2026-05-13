@@ -15,6 +15,7 @@ const AGENCY_OWNER_MAP = {
   'Agency Owner- The Key':           'THE KEY AGENCY',
   'Agency Owner- AA Financial':      'AA FINANCIAL',
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
+  'Agency Owner- Stark Financial':   'STARK FINANCIAL',
 };
 
 export default async function handler(req, res) {
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
 
   // Build date filter
   let startDate = null;
+  let endDate = null;
   const now = new Date();
   if (period === 'today') {
     startDate = new Date(now); startDate.setHours(0,0,0,0);
@@ -42,6 +44,10 @@ export default async function handler(req, res) {
     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
   } else if (period === 'year') {
     startDate = new Date(now.getFullYear(), 0, 1);
+  } else if (period === 'custom') {
+    const { start, end } = req.query;
+    if (start) { startDate = new Date(start); startDate.setHours(0,0,0,0); }
+    if (end) { endDate = new Date(end); endDate.setHours(23,59,59,999); }
   }
 
   try {
@@ -98,6 +104,7 @@ export default async function handler(req, res) {
         .range(from, from + PAGE_SIZE - 1);
 
       if (startDate) query = query.gte('posted_at', startDate.toISOString());
+      if (endDate) query = query.lte('posted_at', endDate.toISOString());
       if (allowedIds) query = query.in('discord_id', allowedIds);
 
       const { data, error } = await query;
