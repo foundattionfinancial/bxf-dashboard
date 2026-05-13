@@ -67,10 +67,12 @@ export default function Home() {
         .eyebrow {
           display:flex;
           align-items:center;
+          justify-content:center;
           gap:16px;
-          margin-bottom:36px;
+          margin-bottom:20px;
           z-index:2;
           position:relative;
+          width:100%;
         }
         .eyebrow-line {
           width:48px;
@@ -92,7 +94,7 @@ export default function Home() {
         .logo-wrap {
           position:relative;
           z-index:2;
-          margin:0 auto 40px auto;
+          margin:0 auto 16px auto;
           width:120px;
           height:120px;
           border-radius:50%;
@@ -245,14 +247,14 @@ export default function Home() {
       <div className="bg-noise" />
       <div className="bg-beam" />
 
+      <div className="logo-wrap">
+        <img className="logo-img" src={`data:image/jpeg;base64,${BLUEPRINT_LOGO}`} alt="Blueprint" />
+      </div>
+
       <div className="eyebrow">
         <div className="eyebrow-line" />
         <div className="eyebrow-text">Family First Life</div>
         <div className="eyebrow-line right" />
-      </div>
-
-      <div className="logo-wrap">
-        <img className="logo-img" src={`data:image/jpeg;base64,${BLUEPRINT_LOGO}`} alt="Blueprint" />
       </div>
 
       <div className="headline">
