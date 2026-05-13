@@ -86,13 +86,28 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fetch deals
-    let query = supabase.from('deals').select('discord_id, amount, posted_at');
-    if (startDate) query = query.gte('posted_at', startDate.toISOString());
-    if (allowedIds) query = query.in('discord_id', allowedIds);
+    // Paginate through ALL deals — Supabase caps at 1000 rows without pagination
+    let deals = [];
+    let from = 0;
+    const PAGE_SIZE = 1000;
 
-    const { data: deals, error } = await query;
-    if (error) return res.status(500).json({ error: error.message });
+    while (true) {
+      let query = supabase
+        .from('deals')
+        .select('discord_id, amount, posted_at')
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (startDate) query = query.gte('posted_at', startDate.toISOString());
+      if (allowedIds) query = query.in('discord_id', allowedIds);
+
+      const { data, error } = await query;
+      if (error) return res.status(500).json({ error: error.message });
+      if (!data || data.length === 0) break;
+
+      deals = deals.concat(data);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
 
     // Aggregate
     const map = {};
