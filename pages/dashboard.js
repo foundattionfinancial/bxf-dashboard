@@ -305,11 +305,24 @@ export default function Dashboard() {
           <button className={`nav-tab ${tab==='leaderboard'?'active':''}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
           {isOwner && <button className={`nav-tab ${getRoleColorClass(ownerRole)} ${tab==='agency'?'active':''}`} onClick={() => setTab('agency')}>Agency</button>}
         </div>
-        <div className="user-chip">
-          <div className="user-avatar-wrap">
-            <img className="user-avatar" src={user.avatar} alt="" onError={e => e.target.style.display='none'} />
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button
+            onClick={async () => {
+              await fetch('/api/auth/refresh', { method: 'POST' });
+              window.location.reload();
+            }}
+            title="Refresh your roles"
+            style={{background:'rgba(255,255,255,0.03)',border:'1px solid rgba(255,255,255,0.07)',borderRadius:8,color:'rgba(255,255,255,0.4)',fontSize:14,width:32,height:32,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',transition:'all 0.15s',flexShrink:0}}
+            onMouseOver={e=>{e.currentTarget.style.color='#ffffff';e.currentTarget.style.borderColor='rgba(255,255,255,0.2)';}}
+            onMouseOut={e=>{e.currentTarget.style.color='rgba(255,255,255,0.4)';e.currentTarget.style.borderColor='rgba(255,255,255,0.07)';}}>
+            ↻
+          </button>
+          <div className="user-chip">
+            <div className="user-avatar-wrap">
+              <img className="user-avatar" src={user.avatar} alt="" onError={e => e.target.style.display='none'} />
+            </div>
+            <span>{user.display_name}</span>
           </div>
-          <span>{user.display_name}</span>
         </div>
       </header>
 
