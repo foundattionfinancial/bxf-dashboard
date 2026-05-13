@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
@@ -23,6 +23,24 @@ const AGENCY_OWNER_ROLES = [
   'Agency Owner- Formula Financial',
   'Agency Owner- Stark Financial',
 ];
+
+function getRoleColorClass(role) {
+  if (!role) return 'owner';
+  if (role.includes('Foundation') || role.includes('Stark')) return 'owner-foundation';
+  if (role.includes('Key')) return 'owner-key';
+  if (role.includes('Formula')) return 'owner-formula';
+  if (role.includes('AA Financial')) return 'owner-aa';
+  if (role.includes('Blueprint')) return 'owner-blueprint';
+  return 'owner';
+}
+
+function getBadgeClass(role) {
+  if (!role) return 'badge-gold';
+  if (role.includes('Foundation') || role.includes('Stark')) return 'badge-silver';
+  if (role.includes('Key') || role.includes('Blueprint')) return 'badge-gold';
+  if (role.includes('Formula') || role.includes('AA Financial')) return 'badge-red';
+  return 'badge-gold';
+}
 
 function filterByPeriod(deals, period, customStart, customEnd) {
   const now = new Date();
@@ -136,10 +154,22 @@ export default function Dashboard() {
         .brand-name { font-family:'Playfair Display',serif; font-size:15px; font-style:italic; color:#ffffff; letter-spacing:0.5px; }
 
         .nav-tabs { display:flex; gap:2px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:8px; padding:3px; }
-        .nav-tab { padding:5px 16px; border:none; background:transparent; color:rgba(255,255,255,0.45); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; letter-spacing:0.5px; text-transform:uppercase; }
+        .nav-tab { padding:5px 16px; border:none; background:transparent; color:rgba(255,255,255,0.9); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; letter-spacing:0.5px; text-transform:uppercase; }
         .nav-tab.active { background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); }
         .nav-tab.owner { color:#f59e0b; }
         .nav-tab.owner.active { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.2); color:#f59e0b; }
+        .nav-tab.owner-foundation { color:#c0c0c0; }
+        .nav-tab.owner-foundation.active { background:rgba(192,192,192,0.08); border-color:rgba(192,192,192,0.2); color:#e8e8e8; }
+        .nav-tab.owner-stark { color:#c0c0c0; }
+        .nav-tab.owner-stark.active { background:rgba(192,192,192,0.08); border-color:rgba(192,192,192,0.2); color:#e8e8e8; }
+        .nav-tab.owner-key { color:#f59e0b; }
+        .nav-tab.owner-key.active { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.3); color:#fbbf24; }
+        .nav-tab.owner-formula { color:#ef4444; }
+        .nav-tab.owner-formula.active { background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25); color:#f87171; }
+        .nav-tab.owner-aa { color:#ef4444; }
+        .nav-tab.owner-aa.active { background:rgba(239,68,68,0.1); border-color:rgba(239,68,68,0.25); color:#f87171; }
+        .nav-tab.owner-blueprint { color:#f59e0b; }
+        .nav-tab.owner-blueprint.active { background:rgba(245,158,11,0.1); border-color:rgba(245,158,11,0.2); color:#f59e0b; }
 
         .user-chip { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:20px; padding:4px 14px 4px 4px; font-size:12px; font-weight:600; color:#ffffff; }
         .user-avatar-wrap { width:26px; height:26px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.08); }
@@ -150,26 +180,26 @@ export default function Dashboard() {
         .period-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
         .page-title { font-family:'Playfair Display',serif; font-size:20px; font-style:italic; color:#ffffff; }
         .pills { display:flex; gap:2px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); border-radius:7px; padding:3px; flex-wrap:wrap; }
-        .pill { padding:4px 14px; border:none; background:transparent; color:rgba(255,255,255,0.5); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; text-transform:uppercase; letter-spacing:0.5px; }
+        .pill { padding:4px 14px; border:none; background:transparent; color:rgba(255,255,255,0.9); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:700; cursor:pointer; border-radius:5px; transition:all 0.15s; text-transform:uppercase; letter-spacing:0.5px; }
         .pill.active { background:rgba(37,99,235,0.15); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); }
 
         .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
         .stat-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:18px 20px; position:relative; overflow:hidden; }
         .stat-card::after { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,rgba(37,99,235,0.15),transparent); }
-        .stat-label { font-size:10px; font-weight:600; letter-spacing:1.5px; color:rgba(255,255,255,0.5); text-transform:uppercase; margin-bottom:10px; }
+        .stat-label { font-size:10px; font-weight:600; letter-spacing:1.5px; color:rgba(255,255,255,0.9); text-transform:uppercase; margin-bottom:10px; }
         .stat-value { font-family:'DM Mono',monospace; font-size:28px; color:#ffffff; line-height:1; margin-bottom:4px; }
         .stat-value.blue { color:#60a5fa; }
-        .stat-sub { font-size:11px; color:rgba(255,255,255,0.35); font-family:'DM Mono',monospace; }
+        .stat-sub { font-size:11px; color:rgba(255,255,255,0.85); font-family:'DM Mono',monospace; }
 
         .card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:20px; margin-bottom:14px; }
         .card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-        .card-title { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.5); }
+        .card-title { font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.9); }
 
         .bar-chart { display:flex; align-items:flex-end; gap:4px; height:120px; }
         .bar-wrap { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; cursor:pointer; }
         .bar { width:100%; background:rgba(37,99,235,0.2); border-radius:3px 3px 0 0; min-height:2px; transition:background 0.2s; }
         .bar-wrap:hover .bar { background:rgba(96,165,250,0.5); }
-        .bar-lbl { font-size:8px; color:rgba(255,255,255,0.3); font-family:'DM Mono',monospace; white-space:nowrap; }
+        .bar-lbl { font-size:8px; color:rgba(255,255,255,0.85); font-family:'DM Mono',monospace; white-space:nowrap; }
 
         .heatmap-grid { display:grid; grid-template-columns:repeat(53,1fr); gap:2px; margin-bottom:14px; }
         .hm-cell { aspect-ratio:1; border-radius:2px; background:rgba(255,255,255,0.03); cursor:pointer; transition:transform 0.1s; }
@@ -179,20 +209,20 @@ export default function Dashboard() {
         .hm-cell.l3 { background:rgba(59,130,246,0.55); }
         .hm-cell.l4 { background:rgba(96,165,250,0.82); }
         .hm-stats { display:flex; gap:32px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.04); }
-        .hm-stat-label { font-size:10px; color:rgba(255,255,255,0.5); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+        .hm-stat-label { font-size:10px; color:rgba(255,255,255,0.9); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
         .hm-stat-value { font-family:'DM Mono',monospace; font-size:20px; color:#ffffff; }
-        .hm-stat-sub { font-size:10px; color:rgba(255,255,255,0.3); }
+        .hm-stat-sub { font-size:10px; color:rgba(255,255,255,0.85); }
 
         .tooltip { position:fixed; background:#0d1020; border:1px solid rgba(37,99,235,0.3); border-radius:8px; padding:8px 12px; font-size:11px; font-family:'DM Mono',monospace; color:#ffffff; pointer-events:none; z-index:9999; white-space:nowrap; box-shadow:0 4px 24px rgba(0,0,0,0.6); }
-        .tooltip-date { color:rgba(255,255,255,0.5); font-size:10px; margin-bottom:3px; }
+        .tooltip-date { color:rgba(255,255,255,0.9); font-size:10px; margin-bottom:3px; }
         .tooltip-amount { color:#60a5fa; font-weight:500; }
 
         .records-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
         .rec-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:16px 18px; }
-        .rec-label { font-size:10px; color:rgba(255,255,255,0.5); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
-        .rec-badge { display:inline-block; font-size:9px; font-family:'DM Mono',monospace; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.15); color:rgba(255,255,255,0.5); padding:2px 7px; border-radius:4px; margin-bottom:8px; }
+        .rec-label { font-size:10px; color:rgba(255,255,255,0.9); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+        .rec-badge { display:inline-block; font-size:9px; font-family:'DM Mono',monospace; background:rgba(37,99,235,0.08); border:1px solid rgba(37,99,235,0.15); color:rgba(255,255,255,0.9); padding:2px 7px; border-radius:4px; margin-bottom:8px; }
         .rec-value { font-family:'DM Mono',monospace; font-size:24px; color:#ffffff; }
-        .rec-sub { font-size:10px; color:rgba(255,255,255,0.35); margin-top:3px; }
+        .rec-sub { font-size:10px; color:rgba(255,255,255,0.85); margin-top:3px; }
 
         .section-label { font-size:10px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.6); text-transform:uppercase; margin-bottom:10px; }
 
@@ -200,37 +230,40 @@ export default function Dashboard() {
         .month-header { display:flex; align-items:center; gap:12px; padding:14px 0 8px 0; margin-top:4px; }
         .month-header-text { font-family:'DM Mono',monospace; font-size:10px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:#60a5fa; white-space:nowrap; }
         .month-header-line { flex:1; height:1px; background:rgba(37,99,235,0.2); }
-        .month-total { font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.35); white-space:nowrap; }
+        .month-total { font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.85); white-space:nowrap; }
 
         .deal-row { display:flex; align-items:center; justify-content:space-between; padding:9px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
         .deal-row:last-child { border-bottom:none; }
-        .deal-date { font-size:12px; color:rgba(255,255,255,0.5); }
+        .deal-date { font-size:12px; color:rgba(255,255,255,0.9); }
         .deal-right { display:flex; align-items:center; gap:10px; }
         .deal-amount { font-family:'DM Mono',monospace; font-size:13px; font-weight:500; color:#60a5fa; }
-        .deal-link { font-size:10px; color:rgba(96,165,250,0.4); font-family:'DM Mono',monospace; letter-spacing:0.5px; text-decoration:none; border:1px solid rgba(96,165,250,0.15); border-radius:3px; padding:2px 7px; transition:all 0.15s; }
-        .deal-link:hover { color:#60a5fa; border-color:rgba(96,165,250,0.4); }
+        .deal-link { font-size:10px; color:rgba(96,165,250,0.85); font-family:'DM Mono',monospace; letter-spacing:0.5px; text-decoration:none; border:1px solid rgba(96,165,250,0.15); border-radius:3px; padding:2px 7px; transition:all 0.15s; }
+        .deal-link:hover { color:#60a5fa; border-color:rgba(96,165,250,0.85); }
 
-        .show-more-btn { width:100%; padding:12px; background:transparent; border:1px solid rgba(255,255,255,0.07); border-radius:8px; color:rgba(255,255,255,0.4); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; letter-spacing:0.5px; transition:all 0.15s; margin-top:8px; }
+        .show-more-btn { width:100%; padding:12px; background:transparent; border:1px solid rgba(255,255,255,0.07); border-radius:8px; color:rgba(255,255,255,0.9); font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; letter-spacing:0.5px; transition:all 0.15s; margin-top:8px; }
         .show-more-btn:hover { background:rgba(255,255,255,0.03); color:rgba(255,255,255,0.7); }
 
         .lb-header-row { display:flex; align-items:center; padding:8px 20px; border-bottom:1px solid rgba(255,255,255,0.05); gap:12px; }
-        .lb-header-text { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.4); }
+        .lb-header-text { font-size:9px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,255,255,0.9); }
         .lb-row { display:flex; align-items:center; padding:11px 20px; border-bottom:1px solid rgba(255,255,255,0.03); gap:12px; transition:background 0.15s; }
         .lb-row:last-child { border-bottom:none; }
         .lb-row:hover { background:rgba(37,99,235,0.04); }
         .lb-row.you { background:rgba(37,99,235,0.07); border-left:2px solid rgba(37,99,235,0.5); }
-        .lb-rank { font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.3); width:28px; text-align:center; flex-shrink:0; }
-        .lb-avatar-wrap { width:28px; height:28px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.3); }
+        .lb-rank { font-family:'DM Mono',monospace; font-size:12px; color:rgba(255,255,255,0.85); width:28px; text-align:center; flex-shrink:0; }
+        .lb-avatar-wrap { width:28px; height:28px; border-radius:50%; overflow:hidden; flex-shrink:0; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; font-family:'DM Mono',monospace; font-size:11px; color:rgba(255,255,255,0.85); }
         .lb-avatar-wrap img { width:100%; height:100%; object-fit:cover; display:block; border:none; }
         .lb-name { flex:1; font-size:13px; font-weight:500; color:#ffffff; }
         .you-badge { font-size:9px; font-weight:700; background:rgba(37,99,235,0.12); color:#60a5fa; border:1px solid rgba(37,99,235,0.25); padding:1px 6px; border-radius:3px; margin-left:8px; letter-spacing:0.5px; }
-        .lb-deals { font-size:11px; color:rgba(255,255,255,0.35); margin-right:12px; font-family:'DM Mono',monospace; }
+        .lb-deals { font-size:11px; color:rgba(255,255,255,0.85); margin-right:12px; font-family:'DM Mono',monospace; }
         .lb-total { font-family:'DM Mono',monospace; font-size:13px; color:#ffffff; font-weight:500; }
-        .hidden-rows { text-align:center; padding:8px; font-size:11px; color:rgba(255,255,255,0.2); border-bottom:1px solid rgba(255,255,255,0.03); }
+        .hidden-rows { text-align:center; padding:8px; font-size:11px; color:rgba(255,255,255,0.75); border-bottom:1px solid rgba(255,255,255,0.03); }
 
         /* AGENCY */
         .agency-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-        .agency-role-badge { font-size:10px; font-weight:700; background:rgba(245,158,11,0.08); color:#f59e0b; border:1px solid rgba(245,158,11,0.2); padding:3px 10px; border-radius:4px; letter-spacing:1px; text-transform:uppercase; margin-top:6px; display:inline-block; }
+        .agency-role-badge { font-size:10px; font-weight:700; padding:3px 10px; border-radius:4px; letter-spacing:1px; text-transform:uppercase; margin-top:6px; display:inline-block; }
+        .badge-silver { background:rgba(192,192,192,0.08); color:#d4d4d4; border:1px solid rgba(192,192,192,0.25); }
+        .badge-gold { background:rgba(245,158,11,0.08); color:#fbbf24; border:1px solid rgba(245,158,11,0.3); }
+        .badge-red { background:rgba(239,68,68,0.08); color:#f87171; border:1px solid rgba(239,68,68,0.25); }
         .agency-controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
         .agency-select { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:7px; color:#ffffff; font-family:'DM Sans',sans-serif; font-size:12px; padding:6px 12px; cursor:pointer; outline:none; }
         .agency-select option { background:#0d1020; }
@@ -256,7 +289,7 @@ export default function Dashboard() {
         <div className="tooltip" style={{ left: tooltip.x + 14, top: tooltip.y - 48 }}>
           <div className="tooltip-date">{tooltip.date}</div>
           <div className="tooltip-amount">{tooltip.amount}</div>
-          {tooltip.deals > 0 && <div style={{color:'rgba(255,255,255,0.4)',fontSize:10,marginTop:2}}>{tooltip.deals} deal{tooltip.deals!==1?'s':''}</div>}
+          {tooltip.deals > 0 && <div style={{color:'#ffffff',fontSize:10,marginTop:2}}>{tooltip.deals} deal{tooltip.deals!==1?'s':''}</div>}
         </div>
       )}
 
@@ -270,7 +303,7 @@ export default function Dashboard() {
         <div className="nav-tabs">
           <button className={`nav-tab ${tab==='personal'?'active':''}`} onClick={() => setTab('personal')}>Personal</button>
           <button className={`nav-tab ${tab==='leaderboard'?'active':''}`} onClick={() => setTab('leaderboard')}>Leaderboard</button>
-          {isOwner && <button className={`nav-tab owner ${tab==='agency'?'active':''}`} onClick={() => setTab('agency')}>Agency</button>}
+          {isOwner && <button className={`nav-tab ${getRoleColorClass(ownerRole)} ${tab==='agency'?'active':''}`} onClick={() => setTab('agency')}>Agency</button>}
         </div>
         <div className="user-chip">
           <div className="user-avatar-wrap">
@@ -349,7 +382,7 @@ export default function Dashboard() {
                 </div>
               );
             })}
-            {deals.length === 0 && <div style={{padding:'20px 0',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:13}}>No deals yet</div>}
+            {deals.length === 0 && <div style={{padding:'20px 0',textAlign:'center',color:'#ffffff',fontSize:13}}>No deals yet</div>}
             {deals.length > 30 && (
               <button className="show-more-btn" onClick={() => setShowAllDeals(!showAllDeals)}>
                 {showAllDeals ? 'Show Less' : `Show All ${deals.length} Deals`}
@@ -363,7 +396,7 @@ export default function Dashboard() {
       {tab === 'leaderboard' && (
         <div className="content">
           <div className="period-row">
-            <div className="page-title">Agency Leaderboard</div>
+            <div className="page-title">The Blueprint Leaderboard</div>
             <div className="pills">
               {['today','week','month','year','all'].map(p => (
                 <button key={p} className={`pill ${lbPeriod===p?'active':''}`} onClick={() => setLbPeriod(p)}>
@@ -397,7 +430,7 @@ export default function Dashboard() {
               )}
               <div>
                 <div className="page-title">{ownerRole && AGENCY_LOGOS[ownerRole] ? AGENCY_LOGOS[ownerRole].name : 'Agency Overview'}</div>
-                <div className="agency-role-badge">{ownerRole}</div>
+                <div className={`agency-role-badge ${getBadgeClass(ownerRole)}`}>{ownerRole}</div>
               </div>
             </div>
             <div className="agency-controls">
@@ -422,7 +455,7 @@ export default function Dashboard() {
                 <div className="date-range">
                   <input type="date" className="date-input" value={agencyCustomStart}
                     onChange={e => setAgencyCustomStart(e.target.value)} />
-                  <span style={{color:'rgba(255,255,255,0.3)',fontSize:12}}>to</span>
+                  <span style={{color:'#ffffff',fontSize:12}}>to</span>
                   <input type="date" className="date-input" value={agencyCustomEnd}
                     onChange={e => setAgencyCustomEnd(e.target.value)} />
                 </div>
@@ -430,7 +463,7 @@ export default function Dashboard() {
             </div>
           </div>
           {agencyLoading ? (
-            <div style={{textAlign:'center',padding:'60px 0',color:'rgba(255,255,255,0.3)',fontSize:13}}>Loading...</div>
+            <div style={{textAlign:'center',padding:'60px 0',color:'#ffffff',fontSize:13}}>Loading...</div>
           ) : agencyData && !agencyData.error ? (
             <>
               <div className="agency-stat-grid">
@@ -449,7 +482,7 @@ export default function Dashboard() {
               </div>
             </>
           ) : (
-            <div style={{textAlign:'center',padding:'60px 0',color:'rgba(255,255,255,0.3)',fontSize:13}}>
+            <div style={{textAlign:'center',padding:'60px 0',color:'#ffffff',fontSize:13}}>
               {agencyData?.error === 'Not an agency owner' ? 'Role not detected — try logging out and back in.' : agencyData?.error || 'No data available'}
             </div>
           )}
@@ -468,7 +501,7 @@ function BarChart({ deals, setTooltip }) {
     daily[key].count++;
   });
   const entries = Object.entries(daily).sort((a,b)=>a[0].localeCompare(b[0])).slice(-20);
-  if (!entries.length) return <div style={{color:'rgba(255,255,255,0.2)',fontSize:12,textAlign:'center',padding:'30px 0'}}>No deals in this period</div>;
+  if (!entries.length) return <div style={{color:'rgba(255,255,255,0.8)',fontSize:12,textAlign:'center',padding:'30px 0'}}>No deals in this period</div>;
   const max = Math.max(...entries.map(([,v])=>v.total));
   return (
     <div className="bar-chart">
@@ -535,14 +568,14 @@ function Leaderboard({ data, currentUser }) {
       {contextRows.map(u=><Row key={u.discord_id} u={u} />)}
       {showContext && hiddenAfter>0 && <div className="hidden-rows">— {hiddenAfter} more —</div>}
       {!showContext && data.slice(3).map(u=><Row key={u.discord_id} u={u} />)}
-      {data.length===0 && <div style={{padding:'24px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:13}}>No data yet</div>}
+      {data.length===0 && <div style={{padding:'24px',textAlign:'center',color:'#ffffff',fontSize:13}}>No data yet</div>}
     </>
   );
 }
 
 function AgencyLeaderboard({ data, currentUser }) {
   const medals = ['👑','🥈','🥉'];
-  if (!data.length) return <div style={{padding:'24px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:13}}>No agents found for this period</div>;
+  if (!data.length) return <div style={{padding:'24px',textAlign:'center',color:'#ffffff',fontSize:13}}>No agents found for this period</div>;
   return (
     <>
       {data.map((u,i)=>(
