@@ -26,8 +26,9 @@ export default function Home() {
           overflow:hidden;
           position:relative;
           font-family:'DM Sans', sans-serif;
-          color:#e8ecf0;
+          color:#ffffff;
           background:#0a0f1a;
+          text-align:center;
         }
 
         /* Deep navy radial gradient background */
@@ -74,16 +75,16 @@ export default function Home() {
         .eyebrow-line {
           width:48px;
           height:1px;
-          background:linear-gradient(90deg, transparent, rgba(180,200,230,0.3));
+          background:linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
         }
         .eyebrow-line.right {
-          background:linear-gradient(90deg, rgba(180,200,230,0.3), transparent);
+          background:linear-gradient(90deg, rgba(255,255,255,0.3), transparent);
         }
         .eyebrow-text {
           font-family:'DM Mono', monospace;
           font-size:10px;
           letter-spacing:4px;
-          color:rgba(180,200,230,0.4);
+          color:rgba(255,255,255,0.5);
           text-transform:uppercase;
         }
 
@@ -91,7 +92,7 @@ export default function Home() {
         .logo-wrap {
           position:relative;
           z-index:2;
-          margin-bottom:40px;
+          margin:0 auto 40px auto;
           width:120px;
           height:120px;
           border-radius:50%;
@@ -124,7 +125,7 @@ export default function Home() {
           font-size:58px;
           font-weight:400;
           letter-spacing:1px;
-          color:#e8ecf4;
+          color:#ffffff;
           line-height:1.05;
           display:block;
         }
@@ -133,7 +134,7 @@ export default function Home() {
           font-size:52px;
           font-weight:400;
           font-style:italic;
-          color:rgba(200,215,235,0.7);
+          color:rgba(255,255,255,0.75);
           line-height:1.1;
           display:block;
           margin-top:2px;
@@ -151,14 +152,14 @@ export default function Home() {
         .dash-line {
           width:40px;
           height:1px;
-          background:rgba(180,200,230,0.2);
+          background:rgba(255,255,255,0.25);
         }
         .dash-text {
           font-family:'Cormorant Garamond', serif;
           font-style:italic;
           font-size:14px;
           letter-spacing:1px;
-          color:rgba(180,200,230,0.45);
+          color:rgba(255,255,255,0.55);
         }
 
         /* Body text */
@@ -168,7 +169,7 @@ export default function Home() {
           font-size:15px;
           font-weight:300;
           line-height:1.8;
-          color:rgba(180,200,230,0.5);
+          color:rgba(255,255,255,0.6);
           text-align:center;
           max-width:340px;
           margin-bottom:44px;
@@ -182,8 +183,8 @@ export default function Home() {
           align-items:center;
           gap:14px;
           background:transparent;
-          color:rgba(200,215,235,0.8);
-          border:1px solid rgba(180,200,230,0.2);
+          color:rgba(255,255,255,0.9);
+          border:1px solid rgba(255,255,255,0.25);
           padding:16px 44px;
           border-radius:4px;
           font-family:'DM Sans', sans-serif;
@@ -198,8 +199,8 @@ export default function Home() {
         }
         .btn:hover {
           background:rgba(255,255,255,0.04);
-          border-color:rgba(180,200,230,0.35);
-          color:#e8ecf4;
+          border-color:rgba(255,255,255,0.4);
+          color:#ffffff;
           transform:translateY(-1px);
         }
         .btn svg { opacity:0.7; }
@@ -235,7 +236,7 @@ export default function Home() {
           font-family:'DM Mono', monospace;
           font-size:9px;
           letter-spacing:3px;
-          color:rgba(180,200,230,0.15);
+          color:rgba(255,255,255,0.2);
           text-transform:uppercase;
         }
       `}</style>
