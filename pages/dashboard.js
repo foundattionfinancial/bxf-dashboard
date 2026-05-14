@@ -448,14 +448,12 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="agency-controls">
-              {ownerRole === 'Agency Owner- Blueprint' && (
+              {agencyData?.visible_roles && agencyData.visible_roles.length > 1 && (
                 <select className="agency-select" value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)}>
-                  <option value="">All Agencies</option>
-                  <option value="The Foundation">The Foundation</option>
-                  <option value="THE KEY AGENCY">The Key Agency</option>
-                  <option value="AA FINANCIAL">AA Financial</option>
-                  <option value="FORMULA FINANCIAL">Formula Financial</option>
-                  <option value="STARK FINANCIAL">Stark Financial</option>
+                  <option value="">All ({agencyData.visible_roles.length} agencies)</option>
+                  {(agencyData.agency_summaries || []).map(a => (
+                    <option key={a.role} value={a.role}>{a.label}</option>
+                  ))}
                 </select>
               )}
               <div className="pills">
@@ -485,6 +483,25 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Total Deals</div><div className="stat-value">{agencyData.summary?.total_deals||0}</div></div>
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
+              {/* Sub-agency breakdown — only show when not filtered to specific agency */}
+              {!agencyFilter && agencyData.agency_summaries && agencyData.agency_summaries.length > 1 && (
+                <div className="card" style={{marginBottom:14}}>
+                  <div className="card-header">
+                    <div className="card-title">Agency Breakdown</div>
+                  </div>
+                  <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:10}}>
+                    {agencyData.agency_summaries.map(a => (
+                      <div key={a.role} style={{background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:10, padding:'12px 16px', cursor:'pointer'}}
+                        onClick={() => setAgencyFilter(a.role)}>
+                        <div style={{fontSize:10, fontWeight:700, letterSpacing:'1px', textTransform:'uppercase', color:'rgba(255,255,255,0.5)', marginBottom:8}}>{a.label}</div>
+                        <div style={{fontFamily:'DM Mono,monospace', fontSize:20, color:'#60a5fa', marginBottom:4}}>${Math.round(a.total_production).toLocaleString()}</div>
+                        <div style={{fontSize:11, color:'rgba(255,255,255,0.5)'}}>{a.total_deals} deals · {a.agent_count} agents</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="card" style={{padding:0}}>
                 <div className="lb-header-row">
                   <div style={{width:28}} /><div style={{width:28}} />
