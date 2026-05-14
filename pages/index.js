@@ -11,7 +11,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>The Blueprint Agency Sales</title>
+        <title>Blueprint Agency Sales</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet" />
         <link rel="icon" type="image/png" href={`data:image/png;base64,${FAVICON}`} />
