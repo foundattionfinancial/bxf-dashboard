@@ -84,13 +84,7 @@ export default async function handler(req, res) {
       sameSite: 'none',
     }));
 
-    // Check if opened as popup via state parameter
-    const state = req.query.state || '';
-    if (state === 'popup') {
-      res.redirect('/auth-success');
-    } else {
-      res.redirect('/dashboard');
-    }
+    res.redirect('/dashboard');
   } catch(e) {
     console.error('Auth error:', e);
     res.redirect('/?error=auth_failed');
