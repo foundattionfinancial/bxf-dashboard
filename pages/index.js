@@ -138,6 +138,23 @@ export default function Home() {
         }
       `}</style>
 
+      <script dangerouslySetInnerHTML={{__html: `
+        // Poll for auth success from popup
+        (function() {
+          var interval = setInterval(function() {
+            try {
+              var flag = localStorage.getItem('discord-auth-success');
+              if (flag) {
+                localStorage.removeItem('discord-auth-success');
+                clearInterval(interval);
+                window.location.href = '/dashboard';
+              }
+            } catch(e) {}
+          }, 500);
+          // Stop polling after 5 minutes
+          setTimeout(function() { clearInterval(interval); }, 300000);
+        })();
+      `}} />
       <div className="bg" />
       <div className="bg-beam" />
 
