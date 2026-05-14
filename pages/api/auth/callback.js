@@ -81,10 +81,16 @@ export default async function handler(req, res) {
       secure: true,
       maxAge: 60 * 60 * 24 * 7,
       path: '/',
-      sameSite: 'lax',
+      sameSite: 'none',
     }));
 
-    res.redirect('/dashboard');
+    // If opened as popup (from iframe), go to success page that closes itself
+    const referer = req.headers.referer || '';
+    if (referer.includes('lovable') || referer.includes('foundationfinancial.io')) {
+      res.redirect('/auth-success');
+    } else {
+      res.redirect('/dashboard');
+    }
   } catch(e) {
     console.error('Auth error:', e);
     res.redirect('/?error=auth_failed');
