@@ -138,23 +138,6 @@ export default function Home() {
         }
       `}</style>
 
-      <script dangerouslySetInnerHTML={{__html: `
-        // Poll for auth success from popup
-        (function() {
-          var interval = setInterval(function() {
-            try {
-              var flag = localStorage.getItem('discord-auth-success');
-              if (flag) {
-                localStorage.removeItem('discord-auth-success');
-                clearInterval(interval);
-                window.location.href = '/dashboard';
-              }
-            } catch(e) {}
-          }, 500);
-          // Stop polling after 5 minutes
-          setTimeout(function() { clearInterval(interval); }, 300000);
-        })();
-      `}} />
       <div className="bg" />
       <div className="bg-beam" />
 
@@ -184,22 +167,7 @@ export default function Home() {
           Track your production, pace the month, and feel the leaderboard move. Sign in with the Discord account you use in your FFL server.
         </p>
 
-        <a
-          href="/api/auth/discord?popup=true"
-          className="btn"
-          onClick={e => {
-            e.preventDefault();
-            const isIframe = typeof window !== 'undefined' && window.self !== window.top;
-            if (isIframe) {
-              window.open(
-                '/api/auth/discord?popup=true',
-                'discord-auth',
-                'width=500,height=700,scrollbars=yes,resizable=yes'
-              );
-            } else {
-              window.location.href = '/api/auth/discord';
-            }
-          }}>
+        <a href="/api/auth/discord" className="btn">
           <svg width="18" height="18" viewBox="0 0 71 55" fill="none">
             <path d="M60.1 4.9A58.5 58.5 0 0 0 45.6.9a40.7 40.7 0 0 0-1.8 3.6 54.1 54.1 0 0 0-16.2 0A39.5 39.5 0 0 0 25.8.9 58.4 58.4 0 0 0 11.2 5C1.6 19.3-1 33.2.3 46.9a58.9 58.9 0 0 0 17.9 9 44 44 0 0 0 3.8-6.2 38.3 38.3 0 0 1-6-2.9l1.4-1.1a42 42 0 0 0 36.2 0l1.5 1.1a38.3 38.3 0 0 1-6 2.9 44 44 0 0 0 3.8 6.2 58.7 58.7 0 0 0 17.9-9C72.2 31 69 17.2 60.1 4.9ZM23.7 38.5c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.4 3.2 6.3 7.2 0 4-2.8 7.2-6.3 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.5 0 6.4 3.2 6.3 7.2 0 4-2.8 7.2-6.3 7.2Z" fill="currentColor"/>
           </svg>
