@@ -9,13 +9,32 @@ const supabase = createClient(
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
-const AGENCY_OWNER_MAP = {
-  'Agency Owner- Blueprint':         null,
-  'Agency Owner- The Foundation':    'The Foundation',
-  'Agency Owner- The Key':           'THE KEY AGENCY',
-  'Agency Owner- AA Financial':      'AA FINANCIAL',
-  'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
-  'Agency Owner- Stark Financial':   'STARK FINANCIAL',
+// Full hierarchy — each owner sees their role + all downline roles
+const AGENCY_HIERARCHY = {
+  'Agency Owner- Blueprint': [
+    'Blueprint Agency', 'The Foundation', 'THE KEY AGENCY',
+    'AA FINANCIAL', 'FORMULA FINANCIAL', 'Stark Financial'
+  ],
+  'Agency Owner- The Foundation': [
+    'The Foundation', 'THE KEY AGENCY', 'AA FINANCIAL',
+    'FORMULA FINANCIAL', 'Stark Financial'
+  ],
+  'Agency Owner- The Key': [
+    'THE KEY AGENCY', 'AA FINANCIAL', 'FORMULA FINANCIAL'
+  ],
+  'Agency Owner- AA Financial':      ['AA FINANCIAL'],
+  'Agency Owner- Formula Financial': ['FORMULA FINANCIAL'],
+  'Agency Owner- Stark Financial':   ['Stark Financial'],
+};
+
+// Summary labels for each sub-agency group
+const AGENCY_LABELS = {
+  'Blueprint Agency':  'Blueprint Agency',
+  'The Foundation':    'The Foundation',
+  'THE KEY AGENCY':    'The Key Agency',
+  'AA FINANCIAL':      'AA Financial',
+  'FORMULA FINANCIAL': 'Formula Financial',
+  'Stark Financial':   'Stark Financial',
 };
 
 export default async function handler(req, res) {
@@ -27,10 +46,15 @@ export default async function handler(req, res) {
 
   const { period, agency, start, end } = req.query;
 
-  const ownerRole = (session.roles || []).find(r => AGENCY_OWNER_MAP.hasOwnProperty(r));
+  const ownerRole = (session.roles || []).find(r => AGENCY_HIERARCHY.hasOwnProperty(r));
   if (!ownerRole) return res.status(403).json({ error: 'Not an agency owner' });
 
-  const filterRole = agency !== undefined ? agency : AGENCY_OWNER_MAP[ownerRole];
+  // Which roles this owner can see
+  const visibleRoles = AGENCY_HIERARCHY[ownerRole];
+
+  // If filtering to specific sub-agency
+  const filterRole = agency || null;
+  const rolesToFetch = filterRole ? [filterRole] : visibleRoles;
 
   // Build date filter
   let startDate = null;
@@ -50,83 +74,97 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Step 1: Get ALL members with the target role from Discord
-    let allMemberIds = [];
+    // Fetch all guild roles once
+    const rolesRes = await fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
+      headers: { Authorization: `Bot ${BOT_TOKEN}` },
+    });
+    if (!rolesRes.ok) return res.status(500).json({ error: 'Failed to fetch roles' });
+    const allRoles = await rolesRes.json();
 
-    if (filterRole) {
-      // Get role ID
-      const rolesRes = await fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
-        headers: { Authorization: `Bot ${BOT_TOKEN}` },
-      });
-      if (!rolesRes.ok) return res.status(500).json({ error: 'Failed to fetch roles' });
-      const allRoles = await rolesRes.json();
-      const targetRole = allRoles.find(r => r.name === filterRole);
-      if (!targetRole) return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 } });
+    // Build role name -> ID map (case-insensitive)
+    const roleIdMap = {};
+    allRoles.forEach(r => {
+      roleIdMap[r.name] = r.id;
+      roleIdMap[r.name.toLowerCase()] = r.id;
+    });
 
-      // Paginate through ALL guild members
-      let after = '0';
-      while (true) {
-        const membersRes = await fetch(
-          `https://discord.com/api/guilds/${GUILD_ID}/members?limit=1000&after=${after}`,
-          { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
-        );
-        if (!membersRes.ok) break;
-        const members = await membersRes.json();
-        if (!members.length) break;
-        members.forEach(m => {
-          if (m.roles.includes(targetRole.id)) {
-            allMemberIds.push({
-              discord_id: m.user.id,
-              display_name: m.nick || m.user.global_name || m.user.username,
-              avatar: m.avatar
-                ? `https://cdn.discordapp.com/guilds/${GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png`
-                : m.user.avatar
-                  ? `https://cdn.discordapp.com/avatars/${m.user.id}/${m.user.avatar}.png`
-                  : null,
-            });
-          }
-        });
-        if (members.length < 1000) break;
-        after = members[members.length - 1].user.id;
-      }
-    } else {
-      // Blueprint owner — get all users from our DB
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('discord_id, display_name, avatar');
-      allMemberIds = allUsers || [];
-    }
-
-    if (!allMemberIds.length) {
-      return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 }, filter_role: filterRole });
-    }
-
-    const ids = allMemberIds.map(m => m.discord_id);
-
-    // Step 2: Get deals for these members in the time period
-    let deals = [];
-    let from = 0;
-    const PAGE_SIZE = 1000;
-
+    // Fetch all guild members once
+    let allMembers = [];
+    let after = '0';
     while (true) {
-      let query = supabase
-        .from('deals')
-        .select('discord_id, amount, posted_at')
-        .in('discord_id', ids)
-        .range(from, from + PAGE_SIZE - 1);
-
-      if (startDate) query = query.gte('posted_at', startDate.toISOString());
-      if (endDate) query = query.lte('posted_at', endDate.toISOString());
-
-      const { data, error } = await query;
-      if (error) return res.status(500).json({ error: error.message });
-      if (!data || data.length === 0) break;
-      deals = deals.concat(data);
-      if (data.length < PAGE_SIZE) break;
-      from += PAGE_SIZE;
+      const membersRes = await fetch(
+        `https://discord.com/api/guilds/${GUILD_ID}/members?limit=1000&after=${after}`,
+        { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
+      );
+      if (!membersRes.ok) break;
+      const members = await membersRes.json();
+      if (!members.length) break;
+      allMembers = allMembers.concat(members);
+      if (members.length < 1000) break;
+      after = members[members.length - 1].user.id;
     }
 
-    // Step 3: Aggregate deals by user
+    // Build per-role member lists
+    const roleMemberMap = {};
+    for (const roleName of visibleRoles) {
+      const roleId = roleIdMap[roleName] || roleIdMap[roleName.toLowerCase()];
+      if (!roleId) continue;
+      roleMemberMap[roleName] = allMembers
+        .filter(m => m.roles.includes(roleId))
+        .map(m => ({
+          discord_id: m.user.id,
+          display_name: m.nick || m.user.global_name || m.user.username,
+          avatar: m.avatar
+            ? `https://cdn.discordapp.com/guilds/${GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png`
+            : m.user.avatar
+              ? `https://cdn.discordapp.com/avatars/${m.user.id}/${m.user.avatar}.png`
+              : null,
+        }));
+    }
+
+    // Get all unique member IDs across filtered roles
+    const filteredRoles = filterRole ? [filterRole] : visibleRoles;
+    const memberSet = new Set();
+    const allMemberIds = [];
+    for (const roleName of filteredRoles) {
+      for (const m of (roleMemberMap[roleName] || [])) {
+        if (!memberSet.has(m.discord_id)) {
+          memberSet.add(m.discord_id);
+          allMemberIds.push(m);
+        }
+      }
+    }
+
+    // Get DB users for better names/avatars
+    const ids = allMemberIds.map(m => m.discord_id);
+    const { data: dbUsers } = ids.length
+      ? await supabase.from('users').select('discord_id, display_name, avatar').in('discord_id', ids)
+      : { data: [] };
+    const dbUserMap = {};
+    (dbUsers || []).forEach(u => dbUserMap[u.discord_id] = u);
+
+    // Get deals with pagination
+    let deals = [];
+    if (ids.length) {
+      let from = 0;
+      const PAGE_SIZE = 1000;
+      while (true) {
+        let query = supabase
+          .from('deals')
+          .select('discord_id, amount, posted_at')
+          .in('discord_id', ids)
+          .range(from, from + PAGE_SIZE - 1);
+        if (startDate) query = query.gte('posted_at', startDate.toISOString());
+        if (endDate) query = query.lte('posted_at', endDate.toISOString());
+        const { data, error } = await query;
+        if (error || !data || !data.length) break;
+        deals = deals.concat(data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+    }
+
+    // Aggregate deals by user
     const dealMap = {};
     deals.forEach(d => {
       if (!dealMap[d.discord_id]) dealMap[d.discord_id] = { total: 0, count: 0 };
@@ -134,19 +172,9 @@ export default async function handler(req, res) {
       dealMap[d.discord_id].count++;
     });
 
-    // Step 4: Also get display names from our users table for anyone we have
-    const { data: dbUsers } = await supabase
-      .from('users')
-      .select('discord_id, display_name, avatar')
-      .in('discord_id', ids);
-
-    const dbUserMap = {};
-    (dbUsers || []).forEach(u => dbUserMap[u.discord_id] = u);
-
-    // Step 5: Build leaderboard with ALL members (even $0)
+    // Build leaderboard
     const leaderboard = allMemberIds
       .map(m => {
-        // Prefer DB name (more up to date from bot), fallback to Discord API name
         const dbUser = dbUserMap[m.discord_id];
         return {
           discord_id: m.discord_id,
@@ -159,13 +187,37 @@ export default async function handler(req, res) {
       .sort((a, b) => b.total - a.total)
       .map((u, i) => ({ ...u, rank: i + 1 }));
 
+    // Build per-agency summaries for the owner to see breakdowns
+    const agencySummaries = [];
+    for (const roleName of visibleRoles) {
+      const roleMembers = roleMemberMap[roleName] || [];
+      const roleMemberIds = new Set(roleMembers.map(m => m.discord_id));
+      const roleDeals = deals.filter(d => roleMemberIds.has(d.discord_id));
+      const roleTotal = roleDeals.reduce((s, d) => s + parseFloat(d.amount), 0);
+      const roleCount = roleDeals.length;
+      agencySummaries.push({
+        role: roleName,
+        label: AGENCY_LABELS[roleName] || roleName,
+        total_production: roleTotal,
+        total_deals: roleCount,
+        agent_count: roleMembers.length,
+      });
+    }
+
     const summary = {
       total_production: leaderboard.reduce((s, u) => s + u.total, 0),
       total_deals: leaderboard.reduce((s, u) => s + u.count, 0),
       agent_count: leaderboard.length,
     };
 
-    res.json({ leaderboard, summary, filter_role: filterRole, owner_role: ownerRole });
+    res.json({
+      leaderboard,
+      summary,
+      agency_summaries: agencySummaries,
+      filter_role: filterRole,
+      owner_role: ownerRole,
+      visible_roles: visibleRoles,
+    });
   } catch(e) {
     console.error('Agency error:', e);
     res.status(500).json({ error: e.message });
