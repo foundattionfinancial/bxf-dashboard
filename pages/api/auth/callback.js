@@ -84,9 +84,9 @@ export default async function handler(req, res) {
       sameSite: 'none',
     }));
 
-    // If opened as popup (from iframe), go to success page that closes itself
-    const referer = req.headers.referer || '';
-    if (referer.includes('lovable') || referer.includes('foundationfinancial.io')) {
+    // Check if opened as popup via state parameter
+    const state = req.query.state || '';
+    if (state === 'popup') {
       res.redirect('/auth-success');
     } else {
       res.redirect('/dashboard');
