@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   let session;
   try { session = JSON.parse(raw); } catch(e) { return res.status(401).json({ error: 'Bad session' }); }
 
-  const { period, agency } = req.query;
+  const { period, agency, start, end } = req.query;
 
   const ownerRole = (session.roles || []).find(r => AGENCY_OWNER_MAP.hasOwnProperty(r));
   if (!ownerRole) return res.status(403).json({ error: 'Not an agency owner' });
@@ -45,16 +45,16 @@ export default async function handler(req, res) {
   } else if (period === 'year') {
     startDate = new Date(now.getFullYear(), 0, 1);
   } else if (period === 'custom') {
-    const { start, end } = req.query;
     if (start) { startDate = new Date(start); startDate.setHours(0,0,0,0); }
     if (end) { endDate = new Date(end); endDate.setHours(23,59,59,999); }
   }
 
   try {
-    let allowedIds = null;
+    // Step 1: Get ALL members with the target role from Discord
+    let allMemberIds = [];
 
     if (filterRole) {
-      // Get all guild roles to find target role ID
+      // Get role ID
       const rolesRes = await fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
         headers: { Authorization: `Bot ${BOT_TOKEN}` },
       });
@@ -63,12 +63,7 @@ export default async function handler(req, res) {
       const targetRole = allRoles.find(r => r.name === filterRole);
       if (!targetRole) return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 } });
 
-      // Get all our known users
-      const { data: allUsers } = await supabase.from('users').select('discord_id');
-      const knownIds = new Set((allUsers || []).map(u => u.discord_id));
-
-      // Paginate through guild members to find who has the target role
-      allowedIds = [];
+      // Paginate through ALL guild members
       let after = '0';
       while (true) {
         const membersRes = await fetch(
@@ -79,20 +74,36 @@ export default async function handler(req, res) {
         const members = await membersRes.json();
         if (!members.length) break;
         members.forEach(m => {
-          if (m.roles.includes(targetRole.id) && knownIds.has(m.user.id)) {
-            allowedIds.push(m.user.id);
+          if (m.roles.includes(targetRole.id)) {
+            allMemberIds.push({
+              discord_id: m.user.id,
+              display_name: m.nick || m.user.global_name || m.user.username,
+              avatar: m.avatar
+                ? `https://cdn.discordapp.com/guilds/${GUILD_ID}/users/${m.user.id}/avatars/${m.avatar}.png`
+                : m.user.avatar
+                  ? `https://cdn.discordapp.com/avatars/${m.user.id}/${m.user.avatar}.png`
+                  : null,
+            });
           }
         });
         if (members.length < 1000) break;
         after = members[members.length - 1].user.id;
       }
-
-      if (!allowedIds.length) {
-        return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 }, filter_role: filterRole });
-      }
+    } else {
+      // Blueprint owner — get all users from our DB
+      const { data: allUsers } = await supabase
+        .from('users')
+        .select('discord_id, display_name, avatar');
+      allMemberIds = allUsers || [];
     }
 
-    // Paginate through ALL deals — Supabase caps at 1000 rows without pagination
+    if (!allMemberIds.length) {
+      return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 }, filter_role: filterRole });
+    }
+
+    const ids = allMemberIds.map(m => m.discord_id);
+
+    // Step 2: Get deals for these members in the time period
     let deals = [];
     let from = 0;
     const PAGE_SIZE = 1000;
@@ -101,50 +112,50 @@ export default async function handler(req, res) {
       let query = supabase
         .from('deals')
         .select('discord_id, amount, posted_at')
+        .in('discord_id', ids)
         .range(from, from + PAGE_SIZE - 1);
 
       if (startDate) query = query.gte('posted_at', startDate.toISOString());
       if (endDate) query = query.lte('posted_at', endDate.toISOString());
-      if (allowedIds) query = query.in('discord_id', allowedIds);
 
       const { data, error } = await query;
       if (error) return res.status(500).json({ error: error.message });
       if (!data || data.length === 0) break;
-
       deals = deals.concat(data);
       if (data.length < PAGE_SIZE) break;
       from += PAGE_SIZE;
     }
 
-    // Aggregate
-    const map = {};
-    (deals || []).forEach(d => {
-      if (!map[d.discord_id]) map[d.discord_id] = { total: 0, count: 0 };
-      map[d.discord_id].total += parseFloat(d.amount);
-      map[d.discord_id].count++;
+    // Step 3: Aggregate deals by user
+    const dealMap = {};
+    deals.forEach(d => {
+      if (!dealMap[d.discord_id]) dealMap[d.discord_id] = { total: 0, count: 0 };
+      dealMap[d.discord_id].total += parseFloat(d.amount);
+      dealMap[d.discord_id].count++;
     });
 
-    const ids = Object.keys(map);
-    if (!ids.length) {
-      return res.json({ leaderboard: [], summary: { total_production: 0, total_deals: 0, agent_count: 0 }, filter_role: filterRole });
-    }
-
-    const { data: users } = await supabase
+    // Step 4: Also get display names from our users table for anyone we have
+    const { data: dbUsers } = await supabase
       .from('users')
       .select('discord_id, display_name, avatar')
       .in('discord_id', ids);
 
-    const userMap = {};
-    (users || []).forEach(u => userMap[u.discord_id] = u);
+    const dbUserMap = {};
+    (dbUsers || []).forEach(u => dbUserMap[u.discord_id] = u);
 
-    const leaderboard = Object.entries(map)
-      .map(([id, stats]) => ({
-        discord_id: id,
-        display_name: userMap[id]?.display_name || 'Unknown',
-        avatar: userMap[id]?.avatar || null,
-        total: stats.total,
-        count: stats.count,
-      }))
+    // Step 5: Build leaderboard with ALL members (even $0)
+    const leaderboard = allMemberIds
+      .map(m => {
+        // Prefer DB name (more up to date from bot), fallback to Discord API name
+        const dbUser = dbUserMap[m.discord_id];
+        return {
+          discord_id: m.discord_id,
+          display_name: dbUser?.display_name || m.display_name || 'Unknown',
+          avatar: dbUser?.avatar || m.avatar || null,
+          total: dealMap[m.discord_id]?.total || 0,
+          count: dealMap[m.discord_id]?.count || 0,
+        };
+      })
       .sort((a, b) => b.total - a.total)
       .map((u, i) => ({ ...u, rank: i + 1 }));
 
