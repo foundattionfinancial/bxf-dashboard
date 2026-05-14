@@ -3,26 +3,15 @@ import { useEffect } from 'react';
 export default function AuthSuccess() {
   useEffect(() => {
     try {
-      // Walk up the entire opener chain and message everyone
-      let target = window.opener;
-      while (target) {
-        try {
-          target.postMessage('discord-auth-success', '*');
-          // Also message any iframes inside the opener
-          if (target.frames) {
-            for (let i = 0; i < target.frames.length; i++) {
-              try { target.frames[i].postMessage('discord-auth-success', '*'); } catch(e) {}
-            }
-          }
-        } catch(e) {}
-        try { target = target.opener; } catch(e) { break; }
-      }
-      // Also try top and parent
-      try { window.top.postMessage('discord-auth-success', '*'); } catch(e) {}
-      try { window.parent.postMessage('discord-auth-success', '*'); } catch(e) {}
+      localStorage.setItem('discord-auth-success', Date.now().toString());
     } catch(e) {}
-
-    setTimeout(() => window.close(), 400);
+    try { window.opener?.postMessage('discord-auth-success', '*'); } catch(e) {}
+    try { window.parent?.postMessage('discord-auth-success', '*'); } catch(e) {}
+    try { window.top?.postMessage('discord-auth-success', '*'); } catch(e) {}
+    setTimeout(() => {
+      window.close();
+      setTimeout(() => { window.location.href = '/dashboard'; }, 500);
+    }, 500);
   }, []);
 
   return (
