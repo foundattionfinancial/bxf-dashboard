@@ -681,113 +681,98 @@ function BarChart({ deals, setTooltip }) {
   );
 }
 
-function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
-  const [monthOffset, setMonthOffset] = React.useState(0); // 0 = current month
-
-  const now = new Date();
-  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  const eastern = new Date(easternStr);
-
-  // Target month
-  const targetMonth = new Date(eastern.getFullYear(), eastern.getMonth() + monthOffset, 1);
-  const year = targetMonth.getFullYear();
-  const month = targetMonth.getMonth();
-  const monthLabel = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  // Min: Jan 2025
-  const minMonth = new Date(2025, 0, 1);
-  const canGoBack = new Date(year, month - 1, 1) >= minMonth;
-  const canGoForward = monthOffset < 0;
-
-  // Build weeks for this month
+function buildMonthCalendar(dailyMap, year, month) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-
-  // Pad to start on Sunday
-  const startPad = firstDay.getDay();
   const weeks = [];
-  let week = Array(startPad).fill(null);
-
+  let week = Array(firstDay.getDay()).fill(null);
   for (let d = 1; d <= lastDay.getDate(); d++) {
     const date = new Date(year, month, d);
-    const key = date.toISOString().slice(0,10);
-    const val = dailyMap[key] || 0;
-    week.push({ date, key, val });
+    const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    week.push({ date, key, val: (dailyMap||{})[key] || 0 });
     if (week.length === 7 || d === lastDay.getDate()) {
       while (week.length < 7) week.push(null);
       weeks.push([...week]);
       week = [];
     }
   }
+  return weeks;
+}
 
-  const monthTotal = Object.entries(dailyMap)
-    .filter(([k]) => k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
-    .reduce((s,[,v]) => s+v, 0);
+function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
+  const [monthOffset, setMonthOffset] = React.useState(0);
+  const now = new Date();
+  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const eastern = new Date(easternStr);
+  const todayKey = `${eastern.getFullYear()}-${String(eastern.getMonth()+1).padStart(2,'0')}-${String(eastern.getDate()).padStart(2,'0')}`;
 
-  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const yr = eastern.getFullYear();
+  const mo = eastern.getMonth();
+  const tYear = yr + Math.floor((mo + monthOffset) / 12) < yr 
+    ? yr + Math.floor((mo + monthOffset) / 12) 
+    : yr;
+  const targetDate = new Date(yr, mo + monthOffset, 1);
+  const year = targetDate.getFullYear();
+  const month = targetDate.getMonth();
+  const monthLabel = targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const canGoBack = new Date(year, month - 1, 1) >= new Date(2025, 0, 1);
+  const canGoForward = monthOffset < 0;
+
+  const weeks = buildMonthCalendar(dailyMap, year, month);
+  const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+  const monthTotal = Object.entries(dailyMap||{}).filter(([k])=>k.startsWith(monthKey)).reduce((s,[,v])=>s+v,0);
+  const days = ['S','M','T','W','T','F','S'];
 
   return (
     <div>
-      {/* Month navigation */}
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <button onClick={() => canGoBack && setMonthOffset(o => o-1)}
-          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <button onClick={() => canGoBack && setMonthOffset(o=>o-1)} style={{background:'none',border:'none',color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:18,cursor:canGoBack?'pointer':'default',padding:'0 4px',lineHeight:1}}>‹</button>
         <div style={{textAlign:'center'}}>
-          <div style={{fontFamily:'DM Mono,monospace',fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
-          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'#60a5fa',marginTop:2}}>{fmt(monthTotal)} total</div>}
+          <div style={{fontFamily:'DM Mono,monospace',fontSize:12,fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
+          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:16,color:'#60a5fa',fontWeight:700,marginTop:3}}>{fmt(monthTotal)}</div>}
         </div>
-        <button onClick={() => canGoForward && setMonthOffset(o => o+1)}
-          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoForward?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+        <button onClick={() => canGoForward && setMonthOffset(o=>o+1)} style={{background:'none',border:'none',color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:18,cursor:canGoForward?'pointer':'default',padding:'0 4px',lineHeight:1}}>›</button>
       </div>
 
-      {/* Weekday headers */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:6}}>
-        {weekdays.map(d => (
-          <div key={d} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.5)',letterSpacing:'0.5px'}}>{d}</div>
-        ))}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+        {days.map((d,i) => <div key={i} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.4)',paddingBottom:4}}>{d}</div>)}
       </div>
 
-      {/* Calendar grid */}
       {weeks.map((week, wi) => {
-        const weekTotal = week.filter(Boolean).reduce((s,d) => s+d.val, 0);
+        const weekTotal = week.filter(Boolean).reduce((s,d)=>s+d.val,0);
         const weekStart = week.find(Boolean)?.date;
         const weekEnd = [...week].reverse().find(Boolean)?.date;
         return (
-          <div key={wi} style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,flex:1}}>
+          <div key={wi} style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,flex:1}}>
               {week.map((day, di) => {
-                if (!day) return <div key={di} style={{aspectRatio:'1',borderRadius:4}} />;
+                if (!day) return <div key={di} style={{height:32,borderRadius:4}} />;
                 const val = day.val;
-                const isToday = day.key === eastern.toISOString().slice(0,10);
-                let bg = 'rgba(255,255,255,0.04)';
+                const isToday = day.key === todayKey;
+                let bg = 'rgba(255,255,255,0.03)';
                 if (val > 0) {
                   const r = val / (maxDay || 1);
-                  if (r < 0.25) bg = 'rgba(37,99,235,0.2)';
-                  else if (r < 0.5) bg = 'rgba(37,99,235,0.4)';
-                  else if (r < 0.75) bg = 'rgba(59,130,246,0.6)';
-                  else bg = 'rgba(96,165,250,0.85)';
+                  bg = r < 0.25 ? 'rgba(37,99,235,0.18)' : r < 0.5 ? 'rgba(37,99,235,0.38)' : r < 0.75 ? 'rgba(59,130,246,0.58)' : 'rgba(96,165,250,0.82)';
                 }
-                const dateStr = day.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+                const dateStr = day.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
                 return (
-                  <div key={di}
-                    style={{aspectRatio:'1',borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
-                      cursor:'pointer',position:'relative',border:isToday?'1px solid rgba(96,165,250,0.6)':'1px solid transparent',
-                      transition:'all 0.15s'}}
-                    onMouseMove={e => setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
-                    onMouseLeave={() => setTooltip(null)}
-                    onClick={() => onDayClick && onDayClick(day.date)}>
-                    <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:val>0?'#ffffff':'rgba(255,255,255,0.4)',fontWeight:val>0?'700':'400'}}>{day.date.getDate()}</span>
+                  <div key={di} onClick={() => onDayClick && onDayClick(day.date)}
+                    onMouseMove={e=>setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
+                    onMouseLeave={()=>setTooltip(null)}
+                    style={{height:32,borderRadius:4,background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',
+                      outline:isToday?'1.5px solid rgba(96,165,250,0.5)':'none',gap:1}}>
+                    <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.5)',lineHeight:1}}>{day.date.getDate()}</span>
+                    {val > 0 && <span style={{fontFamily:'DM Mono,monospace',fontSize:7,color:'#60a5fa',lineHeight:1}}>{fmt(val).replace('$','')}</span>}
                   </div>
                 );
               })}
             </div>
-            {weekTotal > 0 && (
-              <div onClick={() => onWeekClick && onWeekClick('week', weekStart, weekEnd)}
-                style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'#60a5fa',whiteSpace:'nowrap',cursor:'pointer',minWidth:52,textAlign:'right',paddingRight:2}}>
-                {fmt(weekTotal)}
-              </div>
-            )}
-            {weekTotal === 0 && <div style={{minWidth:52}} />}
+            <div style={{width:54,textAlign:'right'}}>
+              {weekTotal > 0 ? (
+                <div onClick={() => onWeekClick && onWeekClick('week', weekStart, weekEnd)}
+                  style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'#ffffff',cursor:'pointer',fontWeight:600}}>{fmt(weekTotal)}</div>
+              ) : <div style={{width:54}} />}
+            </div>
           </div>
         );
       })}
@@ -797,96 +782,67 @@ function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
 
 function AgencyHeatmap({ dailyMap, leaderboard, setTooltip }) {
   const [monthOffset, setMonthOffset] = React.useState(0);
-
   const now = new Date();
   const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   const eastern = new Date(easternStr);
 
-  const targetMonth = new Date(eastern.getFullYear(), eastern.getMonth() + monthOffset, 1);
-  const year = targetMonth.getFullYear();
-  const month = targetMonth.getMonth();
-  const monthLabel = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-
-  const minMonth = new Date(2025, 0, 1);
-  const canGoBack = new Date(year, month - 1, 1) >= minMonth;
+  const targetDate = new Date(eastern.getFullYear(), eastern.getMonth() + monthOffset, 1);
+  const year = targetDate.getFullYear();
+  const month = targetDate.getMonth();
+  const monthLabel = targetDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const canGoBack = new Date(year, month - 1, 1) >= new Date(2025, 0, 1);
   const canGoForward = monthOffset < 0;
 
-  const firstDay = new Date(year, month, 1);
-  const lastDay = new Date(year, month + 1, 0);
-  const startPad = firstDay.getDay();
-  const weeks = [];
-  let week = Array(startPad).fill(null);
-
-  for (let d = 1; d <= lastDay.getDate(); d++) {
-    const date = new Date(year, month, d);
-    const key = date.toISOString().slice(0,10);
-    const val = (dailyMap || {})[key] || 0;
-    week.push({ date, key, val });
-    if (week.length === 7 || d === lastDay.getDate()) {
-      while (week.length < 7) week.push(null);
-      weeks.push([...week]);
-      week = [];
-    }
-  }
-
   const safeMap = dailyMap || {};
-  const monthTotal = Object.entries(safeMap)
-    .filter(([k]) => k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
-    .reduce((s,[,v]) => s+v, 0);
-
+  const weeks = buildMonthCalendar(safeMap, year, month);
+  const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+  const monthTotal = Object.entries(safeMap).filter(([k])=>k.startsWith(monthKey)).reduce((s,[,v])=>s+v,0);
   const maxDay = Math.max(...Object.values(safeMap), 1);
-  const totalProduction = (leaderboard || []).reduce((s,u) => s+u.total, 0);
-  const totalDeals = (leaderboard || []).reduce((s,u) => s+u.count, 0);
-  const activeAgents = (leaderboard || []).filter(u => u.total > 0).length;
-
-  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const totalProduction = (leaderboard||[]).reduce((s,u)=>s+u.total,0);
+  const totalDeals = (leaderboard||[]).reduce((s,u)=>s+u.count,0);
+  const activeAgents = (leaderboard||[]).filter(u=>u.total>0).length;
+  const days = ['S','M','T','W','T','F','S'];
 
   return (
     <>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-        <button onClick={() => canGoBack && setMonthOffset(o => o-1)}
-          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+        <button onClick={() => canGoBack && setMonthOffset(o=>o-1)} style={{background:'none',border:'none',color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:18,cursor:canGoBack?'pointer':'default',padding:'0 4px',lineHeight:1}}>‹</button>
         <div style={{textAlign:'center'}}>
-          <div style={{fontFamily:'DM Mono,monospace',fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
-          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'#60a5fa',marginTop:2}}>{fmt(monthTotal)} total</div>}
+          <div style={{fontFamily:'DM Mono,monospace',fontSize:12,fontWeight:700,letterSpacing:'2px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
+          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:16,color:'#60a5fa',fontWeight:700,marginTop:3}}>{fmt(monthTotal)}</div>}
         </div>
-        <button onClick={() => canGoForward && setMonthOffset(o => o+1)}
-          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoForward?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+        <button onClick={() => canGoForward && setMonthOffset(o=>o+1)} style={{background:'none',border:'none',color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:18,cursor:canGoForward?'pointer':'default',padding:'0 4px',lineHeight:1}}>›</button>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:6}}>
-        {weekdays.map(d => (
-          <div key={d} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.6)',letterSpacing:'0.5px'}}>{d}</div>
-        ))}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:4}}>
+        {days.map((d,i) => <div key={i} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.4)',paddingBottom:4}}>{d}</div>)}
       </div>
 
       {weeks.map((week, wi) => (
-        <div key={wi} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:4}}>
+        <div key={wi} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:2}}>
           {week.map((day, di) => {
-            if (!day) return <div key={di} style={{aspectRatio:'1',borderRadius:4}} />;
+            if (!day) return <div key={di} style={{height:32,borderRadius:4}} />;
             const val = day.val;
-            let bg = 'rgba(255,255,255,0.04)';
+            let bg = 'rgba(255,255,255,0.03)';
             if (val > 0) {
               const r = val / maxDay;
-              if (r < 0.25) bg = 'rgba(37,99,235,0.2)';
-              else if (r < 0.5) bg = 'rgba(37,99,235,0.4)';
-              else if (r < 0.75) bg = 'rgba(59,130,246,0.6)';
-              else bg = 'rgba(96,165,250,0.85)';
+              bg = r < 0.25 ? 'rgba(37,99,235,0.18)' : r < 0.5 ? 'rgba(37,99,235,0.38)' : r < 0.75 ? 'rgba(59,130,246,0.58)' : 'rgba(96,165,250,0.82)';
             }
-            const dateStr = day.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+            const dateStr = day.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
             return (
               <div key={di}
-                style={{aspectRatio:'1',borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',cursor:val>0?'pointer':'default'}}
-                onMouseMove={e => setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
-                onMouseLeave={() => setTooltip(null)}>
-                <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:val>0?'#ffffff':'rgba(255,255,255,0.4)'}}>{day.date.getDate()}</span>
+                onMouseMove={e=>setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
+                onMouseLeave={()=>setTooltip(null)}
+                style={{height:32,borderRadius:4,background:bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1}}>
+                <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.5)',lineHeight:1}}>{day.date.getDate()}</span>
+                {val > 0 && <span style={{fontFamily:'DM Mono,monospace',fontSize:7,color:'#60a5fa',lineHeight:1}}>{fmt(val).replace('$','')}</span>}
               </div>
             );
           })}
         </div>
       ))}
 
-      <div className="hm-stats" style={{marginTop:12}}>
+      <div className="hm-stats" style={{marginTop:14}}>
         <div><div className="hm-stat-label">Total Production</div><div className="hm-stat-value">{fmt(totalProduction)}</div></div>
         <div><div className="hm-stat-label">Active Agents</div><div className="hm-stat-value">{activeAgents}</div><div className="hm-stat-sub">of {(leaderboard||[]).length}</div></div>
         <div><div className="hm-stat-label">Total Deals</div><div className="hm-stat-value">{totalDeals}</div></div>
