@@ -42,29 +42,39 @@ function getBadgeClass(role) {
   return 'badge-gold';
 }
 
+// Min date limits
+const MIN_DATE = new Date('2025-01-01T00:00:00');
+
 function getPeriodRange(period, offset) {
   const now = new Date();
   const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
   const eastern = new Date(easternStr);
   const tzOff = now - eastern;
   let start, end, label;
+
   if (period === 'today') {
     const e = new Date(eastern); e.setDate(e.getDate() + offset); e.setHours(0,0,0,0);
+    // Don't go before Jan 1 2025
+    if (e < MIN_DATE) return null;
     start = new Date(e.getTime() + tzOff);
     const eEnd = new Date(e); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
-    label = offset === 0 ? 'Today' : e.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    label = offset === 0 ? 'Today' : e.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
   } else if (period === 'week') {
     const e = new Date(eastern); e.setDate(e.getDate() - e.getDay() + offset * 7); e.setHours(0,0,0,0);
+    if (e < MIN_DATE) return null;
     start = new Date(e.getTime() + tzOff);
     const eEnd = new Date(e); eEnd.setDate(eEnd.getDate() + 6); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
-    label = offset === 0 ? 'This Week' : `${e.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${eEnd.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+    label = offset === 0 ? 'This Week' : `${e.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${eEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
   } else if (period === 'month') {
     const e = new Date(eastern); e.setMonth(e.getMonth() + offset); e.setDate(1); e.setHours(0,0,0,0);
+    if (e < MIN_DATE) return null;
     start = new Date(e.getTime() + tzOff);
     const eEnd = new Date(e); eEnd.setMonth(eEnd.getMonth() + 1); eEnd.setDate(0); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
     label = offset === 0 ? 'This Month' : e.toLocaleDateString('en-US', { month:'long', year:'numeric' });
   } else if (period === 'year') {
     const e = new Date(eastern); e.setFullYear(e.getFullYear() + offset); e.setMonth(0); e.setDate(1); e.setHours(0,0,0,0);
+    // Don't go before 2025
+    if (e.getFullYear() < 2025) return null;
     start = new Date(e.getTime() + tzOff);
     const eEnd = new Date(e); eEnd.setFullYear(eEnd.getFullYear() + 1); eEnd.setDate(eEnd.getDate() - 1); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
     label = offset === 0 ? 'Year to Date' : e.getFullYear().toString();
@@ -378,8 +388,9 @@ export default function Dashboard() {
               <div className="page-title">Your Production</div>
               {['today','week','month','year'].includes(period) && (
                 <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <button onClick={() => setPeriodOffset(o => o - 1)}
-                    style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                  <button onClick={() => { if (getPeriodRange(period, periodOffset - 1)) setPeriodOffset(o => o - 1); }}
+                    disabled={!getPeriodRange(period, periodOffset - 1)}
+                    style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(period, periodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(period,periodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
                   <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
                     {getPeriodRange(period, periodOffset).label}
                   </span>
@@ -516,8 +527,9 @@ export default function Dashboard() {
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 {['today','week','month','year'].includes(agencyPeriod) && (
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <button onClick={() => setAgencyPeriodOffset(o => o - 1)}
-                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                    <button onClick={() => { if (getPeriodRange(agencyPeriod, agencyPeriodOffset - 1)) setAgencyPeriodOffset(o => o - 1); }}
+                      disabled={!getPeriodRange(agencyPeriod, agencyPeriodOffset - 1)}
+                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
                     <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
                       {getPeriodRange(agencyPeriod, agencyPeriodOffset).label}
                     </span>
@@ -554,6 +566,17 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Total Deals</div><div className="stat-value">{agencyData.summary?.total_deals||0}</div></div>
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
+              {/* Agency Heatmap */}
+              {agencyData.leaderboard && agencyData.leaderboard.length > 0 && (
+                <div className="card" style={{marginBottom:14}}>
+                  <div className="card-header">
+                    <div className="card-title">Agency Production Heatmap</div>
+                    <span style={{fontSize:9,color:'rgba(255,255,255,0.25)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>LAST 365 DAYS</span>
+                  </div>
+                  <AgencyHeatmap dailyMap={agencyData.daily_map||{}} leaderboard={agencyData.leaderboard||[]} setTooltip={setTooltip} />
+                </div>
+              )}
+
               {/* Sub-agency breakdown — only show when not filtered to specific agency */}
               {!agencyFilter && agencyData.agency_summaries && agencyData.agency_summaries.length > 1 && (
                 <div className="card" style={{marginBottom:14}}>
