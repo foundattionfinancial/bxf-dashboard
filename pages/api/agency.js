@@ -9,7 +9,6 @@ const supabase = createClient(
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
-// Full hierarchy — each owner sees their role + all downline roles
 const AGENCY_HIERARCHY = {
   'Agency Owner- Blueprint': [
     'Blueprint Agency', 'The Foundation', 'THE KEY AGENCY',
@@ -27,7 +26,6 @@ const AGENCY_HIERARCHY = {
   'Agency Owner- Stark Financial':   ['Stark Financial'],
 };
 
-// Summary labels for each sub-agency group
 const AGENCY_LABELS = {
   'Blueprint Agency':  'Blueprint Agency',
   'The Foundation':    'The Foundation',
@@ -49,12 +47,8 @@ export default async function handler(req, res) {
   const ownerRole = (session.roles || []).find(r => AGENCY_HIERARCHY.hasOwnProperty(r));
   if (!ownerRole) return res.status(403).json({ error: 'Not an agency owner' });
 
-  // Which roles this owner can see
   const visibleRoles = AGENCY_HIERARCHY[ownerRole];
-
-  // If filtering to specific sub-agency
   const filterRole = agency || null;
-  const rolesToFetch = filterRole ? [filterRole] : visibleRoles;
 
   // Build date filter using Eastern Time
   const now = new Date();
@@ -69,6 +63,7 @@ export default async function handler(req, res) {
 
   let startDate = null;
   let endDate = null;
+
   if (period === 'today') {
     startDate = easternMidnight();
   } else if (period === 'week') {
@@ -96,12 +91,8 @@ export default async function handler(req, res) {
     if (!rolesRes.ok) return res.status(500).json({ error: 'Failed to fetch roles' });
     const allRoles = await rolesRes.json();
 
-    // Build role name -> ID map (case-insensitive)
     const roleIdMap = {};
-    allRoles.forEach(r => {
-      roleIdMap[r.name] = r.id;
-      roleIdMap[r.name.toLowerCase()] = r.id;
-    });
+    allRoles.forEach(r => { roleIdMap[r.name] = r.id; });
 
     // Fetch all guild members once
     let allMembers = [];
@@ -122,7 +113,7 @@ export default async function handler(req, res) {
     // Build per-role member lists
     const roleMemberMap = {};
     for (const roleName of visibleRoles) {
-      const roleId = roleIdMap[roleName] || roleIdMap[roleName.toLowerCase()];
+      const roleId = roleIdMap[roleName];
       if (!roleId) continue;
       roleMemberMap[roleName] = allMembers
         .filter(m => m.roles.includes(roleId))
@@ -137,7 +128,7 @@ export default async function handler(req, res) {
         }));
     }
 
-    // Get all unique member IDs across filtered roles
+    // Get unique members across filtered roles
     const filteredRoles = filterRole ? [filterRole] : visibleRoles;
     const memberSet = new Set();
     const allMemberIds = [];
@@ -150,8 +141,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // Get DB users for better names/avatars
     const ids = allMemberIds.map(m => m.discord_id);
+
+    // Get DB users
     const { data: dbUsers } = ids.length
       ? await supabase.from('users').select('discord_id, display_name, avatar').in('discord_id', ids)
       : { data: [] };
@@ -179,7 +171,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Aggregate deals by user
+    // Aggregate deals
     const dealMap = {};
     deals.forEach(d => {
       if (!dealMap[d.discord_id]) dealMap[d.discord_id] = { total: 0, count: 0 };
@@ -202,19 +194,17 @@ export default async function handler(req, res) {
       .sort((a, b) => b.total - a.total)
       .map((u, i) => ({ ...u, rank: i + 1 }));
 
-    // Build per-agency summaries for the owner to see breakdowns
+    // Build per-agency summaries
     const agencySummaries = [];
     for (const roleName of visibleRoles) {
       const roleMembers = roleMemberMap[roleName] || [];
       const roleMemberIds = new Set(roleMembers.map(m => m.discord_id));
       const roleDeals = deals.filter(d => roleMemberIds.has(d.discord_id));
-      const roleTotal = roleDeals.reduce((s, d) => s + parseFloat(d.amount), 0);
-      const roleCount = roleDeals.length;
       agencySummaries.push({
         role: roleName,
         label: AGENCY_LABELS[roleName] || roleName,
-        total_production: roleTotal,
-        total_deals: roleCount,
+        total_production: roleDeals.reduce((s, d) => s + parseFloat(d.amount), 0),
+        total_deals: roleDeals.length,
         agent_count: roleMembers.length,
       });
     }
@@ -225,17 +215,9 @@ export default async function handler(req, res) {
       agent_count: leaderboard.length,
     };
 
-    res.json({
-      leaderboard,
-      summary,
-      agency_summaries: agencySummaries,
-      filter_role: filterRole,
-      owner_role: ownerRole,
-      visible_roles: visibleRoles,
-    });
+    res.json({ leaderboard, summary, agency_summaries: agencySummaries, filter_role: filterRole, owner_role: ownerRole, visible_roles: visibleRoles });
   } catch(e) {
     console.error('Agency error:', e);
     res.status(500).json({ error: e.message });
   }
-}
 }
