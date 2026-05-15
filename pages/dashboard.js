@@ -420,7 +420,6 @@ export default function Dashboard() {
           <div className="card">
             <div className="card-header">
               <div className="card-title">Production Heatmap</div>
-              <span style={{fontSize:9,color:'rgba(255,255,255,0.25)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>LAST 365 DAYS</span>
             </div>
             <Heatmap
               dailyMap={dailyMap}
@@ -607,7 +606,7 @@ export default function Dashboard() {
                 <div className="card" style={{marginBottom:14}}>
                   <div className="card-header">
                     <div className="card-title">Agency Production Heatmap</div>
-                    <span style={{fontSize:9,color:'rgba(255,255,255,0.25)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>LAST 365 DAYS</span>
+                    <span style={{fontSize:9,color:'rgba(255,255,255,0.6)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>PRODUCTION HEATMAP</span>
                   </div>
                   <AgencyHeatmap dailyMap={agencyData.daily_map||{}} leaderboard={agencyData.leaderboard||[]} setTooltip={setTooltip} />
                 </div>
@@ -683,167 +682,215 @@ function BarChart({ deals, setTooltip }) {
 }
 
 function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
+  const [monthOffset, setMonthOffset] = React.useState(0); // 0 = current month
+
   const now = new Date();
+  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const eastern = new Date(easternStr);
 
-  // Build months grouping for the last 365 days
-  const months = [];
-  let currentMonth = null;
-  let currentWeeks = [];
-  let currentWeek = [];
+  // Target month
+  const targetMonth = new Date(eastern.getFullYear(), eastern.getMonth() + monthOffset, 1);
+  const year = targetMonth.getFullYear();
+  const month = targetMonth.getMonth();
+  const monthLabel = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-  // Start from 364 days ago, padded to Sunday
-  const startDate = new Date(now);
-  startDate.setDate(startDate.getDate() - 364);
-  startDate.setDate(startDate.getDate() - startDate.getDay()); // back to Sunday
+  // Min: Jan 2025
+  const minMonth = new Date(2025, 0, 1);
+  const canGoBack = new Date(year, month - 1, 1) >= minMonth;
+  const canGoForward = monthOffset < 0;
 
-  const endDate = new Date(now);
+  // Build weeks for this month
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
 
-  let cursor = new Date(startDate);
+  // Pad to start on Sunday
+  const startPad = firstDay.getDay();
+  const weeks = [];
+  let week = Array(startPad).fill(null);
 
-  while (cursor <= endDate) {
-    const monthKey = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-    const key = cursor.toISOString().slice(0, 10);
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const date = new Date(year, month, d);
+    const key = date.toISOString().slice(0,10);
     const val = dailyMap[key] || 0;
-    const isInRange = cursor <= endDate && cursor >= new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
-
-    currentWeek.push({ date: new Date(cursor), key, val, inRange: isInRange });
-
-    if (cursor.getDay() === 6 || cursor >= endDate) {
-      // End of week — calc week total
-      const weekTotal = currentWeek.reduce((s, d) => s + d.val, 0);
-      const weekStart = new Date(currentWeek[0].date);
-      const weekEnd = new Date(currentWeek[currentWeek.length - 1].date);
-
-      if (currentMonth !== monthKey) {
-        if (currentMonth !== null) {
-          const monthTotal = currentWeeks.reduce((s, w) => s + w.total, 0);
-          months.push({ label: currentMonth, weeks: currentWeeks, total: monthTotal });
-          currentWeeks = [];
-        }
-        currentMonth = monthKey;
-      }
-
-      currentWeeks.push({ days: [...currentWeek], total: weekTotal, start: weekStart, end: weekEnd });
-      currentWeek = [];
+    week.push({ date, key, val });
+    if (week.length === 7 || d === lastDay.getDate()) {
+      while (week.length < 7) week.push(null);
+      weeks.push([...week]);
+      week = [];
     }
-
-    cursor.setDate(cursor.getDate() + 1);
   }
 
-  // Push last month
-  if (currentWeeks.length > 0) {
-    const monthTotal = currentWeeks.reduce((s, w) => s + w.total, 0);
-    months.push({ label: currentMonth, weeks: currentWeeks, total: monthTotal });
-  }
+  const monthTotal = Object.entries(dailyMap)
+    .filter(([k]) => k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
+    .reduce((s,[,v]) => s+v, 0);
+
+  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   return (
-    <div style={{overflowX:'auto', paddingBottom:8}}>
-      {months.map((month, mi) => (
-        <div key={month.label} style={{marginBottom:16}}>
-          {/* Month header */}
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8,cursor:'pointer'}}
-            onClick={() => {
-              const parts = month.label.split(' ');
-              const mIdx = ['January','February','March','April','May','June','July','August','September','October','November','December'].indexOf(parts[0]);
-              const yr = parseInt(parts[1]);
-              if (mIdx !== -1) onWeekClick && onWeekClick('month', new Date(yr, mIdx, 1), new Date(yr, mIdx+1, 0));
-            }}>
-            <span style={{fontFamily:'DM Mono,monospace',fontSize:10,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#60a5fa',whiteSpace:'nowrap'}}>{month.label}</span>
-            <div style={{flex:1,height:'1px',background:'rgba(37,99,235,0.15)'}} />
-            <span style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'rgba(255,255,255,0.4)',whiteSpace:'nowrap'}}>{fmt(month.total)}</span>
-          </div>
+    <div>
+      {/* Month navigation */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <button onClick={() => canGoBack && setMonthOffset(o => o-1)}
+          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontFamily:'DM Mono,monospace',fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
+          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'#60a5fa',marginTop:2}}>{fmt(monthTotal)} total</div>}
+        </div>
+        <button onClick={() => canGoForward && setMonthOffset(o => o+1)}
+          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoForward?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+      </div>
 
-          {/* Week rows */}
-          {month.weeks.map((week, wi) => (
-            <div key={wi} style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
-              {/* Day cells */}
-              <div style={{display:'flex',gap:2,flex:1}}>
-                {week.days.map((day, di) => {
-                  const val = day.val;
-                  const inRange = day.inRange && day.date <= now;
-                  let bg = 'rgba(255,255,255,0.03)';
-                  if (inRange && val > 0) {
-                    const r = val / maxDay;
-                    if (r < 0.25) bg = 'rgba(37,99,235,0.15)';
-                    else if (r < 0.5) bg = 'rgba(37,99,235,0.32)';
-                    else if (r < 0.75) bg = 'rgba(59,130,246,0.55)';
-                    else bg = 'rgba(96,165,250,0.82)';
-                  }
-                  const dateStr = day.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-                  return (
-                    <div key={di}
-                      style={{width:14,height:14,borderRadius:2,background:bg,cursor:inRange?'pointer':'default',transition:'transform 0.1s',flexShrink:0}}
-                      onMouseMove={e => inRange && setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
-                      onMouseLeave={() => setTooltip(null)}
-                      onClick={() => inRange && onDayClick && onDayClick(day.date)}
-                    />
-                  );
-                })}
-                {/* Pad to 7 cells */}
-                {Array(7 - week.days.length).fill(0).map((_, i) => (
-                  <div key={`pad-${i}`} style={{width:14,height:14,flexShrink:0}} />
-                ))}
-              </div>
-              {/* Week total */}
-              {week.total > 0 && (
-                <div
-                  style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.3)',whiteSpace:'nowrap',cursor:'pointer',minWidth:50,textAlign:'right'}}
-                  onClick={() => onWeekClick && onWeekClick('week', week.start, week.end)}
-                  title={`${week.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${week.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})}: ${fmt(week.total)}`}>
-                  {fmt(week.total)}
-                </div>
-              )}
-              {week.total === 0 && <div style={{minWidth:50}} />}
+      {/* Weekday headers */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:6}}>
+        {weekdays.map(d => (
+          <div key={d} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.5)',letterSpacing:'0.5px'}}>{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      {weeks.map((week, wi) => {
+        const weekTotal = week.filter(Boolean).reduce((s,d) => s+d.val, 0);
+        const weekStart = week.find(Boolean)?.date;
+        const weekEnd = [...week].reverse().find(Boolean)?.date;
+        return (
+          <div key={wi} style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,flex:1}}>
+              {week.map((day, di) => {
+                if (!day) return <div key={di} style={{aspectRatio:'1',borderRadius:4}} />;
+                const val = day.val;
+                const isToday = day.key === eastern.toISOString().slice(0,10);
+                let bg = 'rgba(255,255,255,0.04)';
+                if (val > 0) {
+                  const r = val / (maxDay || 1);
+                  if (r < 0.25) bg = 'rgba(37,99,235,0.2)';
+                  else if (r < 0.5) bg = 'rgba(37,99,235,0.4)';
+                  else if (r < 0.75) bg = 'rgba(59,130,246,0.6)';
+                  else bg = 'rgba(96,165,250,0.85)';
+                }
+                const dateStr = day.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+                return (
+                  <div key={di}
+                    style={{aspectRatio:'1',borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',
+                      cursor:'pointer',position:'relative',border:isToday?'1px solid rgba(96,165,250,0.6)':'1px solid transparent',
+                      transition:'all 0.15s'}}
+                    onMouseMove={e => setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
+                    onMouseLeave={() => setTooltip(null)}
+                    onClick={() => onDayClick && onDayClick(day.date)}>
+                    <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:val>0?'#ffffff':'rgba(255,255,255,0.4)',fontWeight:val>0?'700':'400'}}>{day.date.getDate()}</span>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
-      ))}
+            {weekTotal > 0 && (
+              <div onClick={() => onWeekClick && onWeekClick('week', weekStart, weekEnd)}
+                style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'#60a5fa',whiteSpace:'nowrap',cursor:'pointer',minWidth:52,textAlign:'right',paddingRight:2}}>
+                {fmt(weekTotal)}
+              </div>
+            )}
+            {weekTotal === 0 && <div style={{minWidth:52}} />}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function Leaderboard({ data, currentUser }) {
-  const medals = ['👑','🥈','🥉'];
-  const myIdx = data.findIndex(u => u.discord_id === currentUser?.discord_id);
-  const showContext = myIdx > 3;
-  const contextRows = showContext ? data.slice(Math.max(3,myIdx-1),myIdx+2) : [];
-  const hiddenBefore = showContext && myIdx>4 ? myIdx-1-3 : 0;
-  const hiddenAfter = showContext && myIdx+2<data.length ? data.length-(myIdx+2) : 0;
-  const Row = ({u, medal}) => (
-    <div className={`lb-row ${u.discord_id===currentUser?.discord_id?'you':''}`}>
-      <div className="lb-rank">{medal||u.rank}</div>
-      <div className="lb-avatar-wrap">{u.avatar?<img src={u.avatar} alt="" onError={e=>e.target.style.display='none'} />:u.display_name?.[0]}</div>
-      <div className="lb-name">{u.display_name}{u.discord_id===currentUser?.discord_id&&<span className="you-badge">YOU</span>}</div>
-      <div className="lb-deals">{u.count||0} deals</div>
-      <div className="lb-total">{fmt(u.total)}</div>
-    </div>
-  );
-  return (
-    <>
-      {data.slice(0,3).map((u,i)=><Row key={u.discord_id} u={u} medal={medals[i]} />)}
-      {showContext && hiddenBefore>0 && <div className="hidden-rows">— {hiddenBefore} agents —</div>}
-      {contextRows.map(u=><Row key={u.discord_id} u={u} />)}
-      {showContext && hiddenAfter>0 && <div className="hidden-rows">— {hiddenAfter} more —</div>}
-      {!showContext && data.slice(3).map(u=><Row key={u.discord_id} u={u} />)}
-      {data.length===0 && <div style={{padding:'24px',textAlign:'center',color:'#ffffff',fontSize:13}}>No data yet</div>}
-    </>
-  );
-}
+function AgencyHeatmap({ dailyMap, leaderboard, setTooltip }) {
+  const [monthOffset, setMonthOffset] = React.useState(0);
 
-function AgencyLeaderboard({ data, currentUser }) {
-  const medals = ['👑','🥈','🥉'];
-  if (!data.length) return <div style={{padding:'24px',textAlign:'center',color:'#ffffff',fontSize:13}}>No agents found for this period</div>;
+  const now = new Date();
+  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const eastern = new Date(easternStr);
+
+  const targetMonth = new Date(eastern.getFullYear(), eastern.getMonth() + monthOffset, 1);
+  const year = targetMonth.getFullYear();
+  const month = targetMonth.getMonth();
+  const monthLabel = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const minMonth = new Date(2025, 0, 1);
+  const canGoBack = new Date(year, month - 1, 1) >= minMonth;
+  const canGoForward = monthOffset < 0;
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startPad = firstDay.getDay();
+  const weeks = [];
+  let week = Array(startPad).fill(null);
+
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const date = new Date(year, month, d);
+    const key = date.toISOString().slice(0,10);
+    const val = (dailyMap || {})[key] || 0;
+    week.push({ date, key, val });
+    if (week.length === 7 || d === lastDay.getDate()) {
+      while (week.length < 7) week.push(null);
+      weeks.push([...week]);
+      week = [];
+    }
+  }
+
+  const safeMap = dailyMap || {};
+  const monthTotal = Object.entries(safeMap)
+    .filter(([k]) => k.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
+    .reduce((s,[,v]) => s+v, 0);
+
+  const maxDay = Math.max(...Object.values(safeMap), 1);
+  const totalProduction = (leaderboard || []).reduce((s,u) => s+u.total, 0);
+  const totalDeals = (leaderboard || []).reduce((s,u) => s+u.count, 0);
+  const activeAgents = (leaderboard || []).filter(u => u.total > 0).length;
+
+  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
   return (
     <>
-      {data.map((u,i)=>(
-        <div key={u.discord_id} className={`lb-row ${u.discord_id===currentUser?.discord_id?'you':''}`}>
-          <div className="lb-rank">{medals[i]||u.rank}</div>
-          <div className="lb-avatar-wrap">{u.avatar?<img src={u.avatar} alt="" onError={e=>e.target.style.display='none'} />:u.display_name?.[0]}</div>
-          <div className="lb-name">{u.display_name}{u.discord_id===currentUser?.discord_id&&<span className="you-badge">YOU</span>}</div>
-          <div className="lb-deals">{u.count} deals</div>
-          <div className="lb-total">{fmt(u.total)}</div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+        <button onClick={() => canGoBack && setMonthOffset(o => o-1)}
+          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoBack?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontFamily:'DM Mono,monospace',fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#ffffff'}}>{monthLabel}</div>
+          {monthTotal > 0 && <div style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'#60a5fa',marginTop:2}}>{fmt(monthTotal)} total</div>}
+        </div>
+        <button onClick={() => canGoForward && setMonthOffset(o => o+1)}
+          style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,color:canGoForward?'#ffffff':'rgba(255,255,255,0.2)',fontSize:14,width:28,height:28,cursor:canGoForward?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:6}}>
+        {weekdays.map(d => (
+          <div key={d} style={{textAlign:'center',fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.6)',letterSpacing:'0.5px'}}>{d}</div>
+        ))}
+      </div>
+
+      {weeks.map((week, wi) => (
+        <div key={wi} style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:3,marginBottom:4}}>
+          {week.map((day, di) => {
+            if (!day) return <div key={di} style={{aspectRatio:'1',borderRadius:4}} />;
+            const val = day.val;
+            let bg = 'rgba(255,255,255,0.04)';
+            if (val > 0) {
+              const r = val / maxDay;
+              if (r < 0.25) bg = 'rgba(37,99,235,0.2)';
+              else if (r < 0.5) bg = 'rgba(37,99,235,0.4)';
+              else if (r < 0.75) bg = 'rgba(59,130,246,0.6)';
+              else bg = 'rgba(96,165,250,0.85)';
+            }
+            const dateStr = day.date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+            return (
+              <div key={di}
+                style={{aspectRatio:'1',borderRadius:4,background:bg,display:'flex',alignItems:'center',justifyContent:'center',cursor:val>0?'pointer':'default'}}
+                onMouseMove={e => setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
+                onMouseLeave={() => setTooltip(null)}>
+                <span style={{fontFamily:'DM Mono,monospace',fontSize:9,color:val>0?'#ffffff':'rgba(255,255,255,0.4)'}}>{day.date.getDate()}</span>
+              </div>
+            );
+          })}
         </div>
       ))}
+
+      <div className="hm-stats" style={{marginTop:12}}>
+        <div><div className="hm-stat-label">Total Production</div><div className="hm-stat-value">{fmt(totalProduction)}</div></div>
+        <div><div className="hm-stat-label">Active Agents</div><div className="hm-stat-value">{activeAgents}</div><div className="hm-stat-sub">of {(leaderboard||[]).length}</div></div>
+        <div><div className="hm-stat-label">Total Deals</div><div className="hm-stat-value">{totalDeals}</div></div>
+      </div>
     </>
   );
 }
