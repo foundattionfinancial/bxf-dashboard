@@ -551,7 +551,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="agency-controls">
-              {agencyData?.visible_roles && agencyData.visible_roles.length > 1 && (
+              {agencyData?.visible_roles && agencyData.visible_roles.length > 1 && agencyData?.agency_summaries && (
                 <select className="agency-select" value={agencyFilter} onChange={e => setAgencyFilter(e.target.value)}>
                   <option value="">All ({agencyData.visible_roles.length} agencies)</option>
                   {(agencyData.agency_summaries || []).map(a => (
@@ -600,19 +600,10 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Total Deals</div><div className="stat-value">{agencyData.summary?.total_deals||0}</div></div>
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
-              {/* Agency Heatmap */}
-              {agencyData.daily_map && agencyData.leaderboard && agencyData.leaderboard.length > 0 && (
-                <div className="card" style={{marginBottom:14}}>
-                  <div className="card-header">
-                    <div className="card-title">Agency Production Heatmap</div>
-                    <span style={{fontSize:9,color:'rgba(255,255,255,0.6)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>PRODUCTION HEATMAP</span>
-                  </div>
-                  <AgencyHeatmap dailyMap={agencyData.daily_map||{}} leaderboard={agencyData.leaderboard||[]} setTooltip={setTooltip} />
-                </div>
-              )}
+
 
               {/* Sub-agency breakdown — only show when not filtered to specific agency */}
-              {!agencyFilter && agencyData.agency_summaries && agencyData.agency_summaries.length > 1 && (
+              {!agencyFilter && agencyData?.agency_summaries && agencyData.agency_summaries.length > 1 && (
                 <div className="card" style={{marginBottom:14}}>
                   <div className="card-header">
                     <div className="card-title">Agency Breakdown</div>
