@@ -29,7 +29,7 @@ function getRoleColorClass(role) {
   if (role.includes('Foundation') || role.includes('Stark')) return 'owner-foundation';
   if (role.includes('Key')) return 'owner-key';
   if (role.includes('Formula')) return 'owner-formula';
-  if (role.includes('AA Financial')) return 'owner-aa';
+  if (role.includes('AA FINANCIAL')) return 'owner-aa';
   if (role.includes('Blueprint')) return 'owner-blueprint';
   return 'owner';
 }
@@ -38,7 +38,7 @@ function getBadgeClass(role) {
   if (!role) return 'badge-gold';
   if (role.includes('Foundation') || role.includes('Stark')) return 'badge-silver';
   if (role.includes('Key') || role.includes('Blueprint')) return 'badge-gold';
-  if (role.includes('Formula') || role.includes('AA Financial')) return 'badge-red';
+  if (role.includes('Formula') || role.includes('AA FINANCIAL')) return 'badge-red';
   return 'badge-gold';
 }
 
