@@ -171,12 +171,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // Aggregate deals
+    // Aggregate deals by user
     const dealMap = {};
+    // Also build daily production map for heatmap
+    const dailyMap = {};
     deals.forEach(d => {
       if (!dealMap[d.discord_id]) dealMap[d.discord_id] = { total: 0, count: 0 };
       dealMap[d.discord_id].total += parseFloat(d.amount);
       dealMap[d.discord_id].count++;
+      // Daily map - always use full date regardless of period filter
+      const day = d.posted_at.slice(0, 10);
+      dailyMap[day] = (dailyMap[day] || 0) + parseFloat(d.amount);
     });
 
     // Build leaderboard
@@ -215,7 +220,7 @@ export default async function handler(req, res) {
       agent_count: leaderboard.length,
     };
 
-    res.json({ leaderboard, summary, agency_summaries: agencySummaries, filter_role: filterRole, owner_role: ownerRole, visible_roles: visibleRoles });
+    res.json({ leaderboard, summary, agency_summaries: agencySummaries, daily_map: dailyMap, filter_role: filterRole, owner_role: ownerRole, visible_roles: visibleRoles });
   } catch(e) {
     console.error('Agency error:', e);
     res.status(500).json({ error: e.message });
