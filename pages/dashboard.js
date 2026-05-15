@@ -112,6 +112,8 @@ export default function Dashboard() {
   const [agencyCustomEnd, setAgencyCustomEnd] = useState('');
   const [tooltip, setTooltip] = useState(null);
   const [showAllDeals, setShowAllDeals] = useState(false);
+  const [periodOffset, setPeriodOffset] = useState(0);
+  const [agencyPeriodOffset, setAgencyPeriodOffset] = useState(0);
 
   const isOwner = user && (user.roles || []).some(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerRole = user && (user.roles || []).find(r => AGENCY_OWNER_ROLES.includes(r));
@@ -126,6 +128,10 @@ export default function Dashboard() {
     fetch(`/api/leaderboard?period=${lbPeriod}`).then(r => r.json()).then(d => setLeaderboard(Array.isArray(d) ? d : []));
   }, [lbPeriod]);
 
+  // Reset offset when period type changes
+  useEffect(() => { setPeriodOffset(0); }, [period]);
+  useEffect(() => { setAgencyPeriodOffset(0); }, [agencyPeriod]);
+
   useEffect(() => {
     if (tab !== 'agency' || !isOwner) return;
     if (agencyPeriod === 'custom' && (!agencyCustomStart || !agencyCustomEnd)) return;
@@ -136,13 +142,21 @@ export default function Dashboard() {
       params.set('start', agencyCustomStart);
       params.set('end', agencyCustomEnd);
     }
+    if (['today','week','month','year'].includes(agencyPeriod) && agencyPeriodOffset !== 0) {
+      const { start, end } = getPeriodRange(agencyPeriod, agencyPeriodOffset);
+      if (start && end) {
+        params.set('period', 'custom');
+        params.set('start', start.toISOString().slice(0,10));
+        params.set('end', end.toISOString().slice(0,10));
+      }
+    }
     fetch(`/api/agency?${params}`).then(r => r.json()).then(d => {
       setAgencyData(d);
       setAgencyLoading(false);
     }).catch(() => setAgencyLoading(false));
-  }, [tab, agencyPeriod, agencyFilter, agencyCustomStart, agencyCustomEnd, isOwner]);
+  }, [tab, agencyPeriod, agencyFilter, agencyCustomStart, agencyCustomEnd, agencyPeriodOffset, isOwner]);
 
-  const filtered = filterByPeriod(deals, period);
+  const filtered = filterByPeriod(deals, period, null, null, periodOffset);
   const total = filtered.reduce((s, d) => s + parseFloat(d.amount), 0);
   const count = filtered.length;
   const avg = count ? total / count : 0;
@@ -359,7 +373,21 @@ export default function Dashboard() {
       {tab === 'personal' && (
         <div className="content">
           <div className="period-row">
-            <div className="page-title">Your Production</div>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <div className="page-title">Your Production</div>
+              {['today','week','month','year'].includes(period) && (
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                  <button onClick={() => setPeriodOffset(o => o - 1)}
+                    style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                  <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
+                    {getPeriodRange(period, periodOffset).label}
+                  </span>
+                  <button onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
+                    style={{background:periodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:periodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:periodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                    disabled={periodOffset === 0}>›</button>
+                </div>
+              )}
+            </div>
             <div className="pills">
               {['all','today','week','month','year'].map(p => (
                 <button key={p} className={`pill ${period===p?'active':''}`} onClick={() => setPeriod(p)}>
@@ -484,12 +512,26 @@ export default function Dashboard() {
                   ))}
                 </select>
               )}
-              <div className="pills">
-                {['today','week','month','year','all','custom'].map(p => (
-                  <button key={p} className={`pill ${agencyPeriod===p?'active':''}`} onClick={() => setAgencyPeriod(p)}>
-                    {p === 'year' ? 'YTD' : p.charAt(0).toUpperCase()+p.slice(1)}
-                  </button>
-                ))}
+              <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                {['today','week','month','year'].includes(agencyPeriod) && (
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <button onClick={() => setAgencyPeriodOffset(o => o - 1)}
+                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                    <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
+                      {getPeriodRange(agencyPeriod, agencyPeriodOffset).label}
+                    </span>
+                    <button onClick={() => setAgencyPeriodOffset(o => Math.min(0, o + 1))}
+                      style={{background:agencyPeriodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:agencyPeriodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:agencyPeriodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                      disabled={agencyPeriodOffset === 0}>›</button>
+                  </div>
+                )}
+                <div className="pills">
+                  {['today','week','month','year','all','custom'].map(p => (
+                    <button key={p} className={`pill ${agencyPeriod===p?'active':''}`} onClick={() => setAgencyPeriod(p)}>
+                      {p === 'year' ? 'YTD' : p.charAt(0).toUpperCase()+p.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
               {agencyPeriod === 'custom' && (
                 <div className="date-range">
