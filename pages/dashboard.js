@@ -766,7 +766,7 @@ function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
         })}
       </div>
     );
-  } catch(e) { return <div style={{color:'rgba(255,255,255,0.4)',fontSize:12,padding:'20px 0'}}>Heatmap unavailable</div>; }
+  } catch(e) { return null; }
 }
 
 function AgencyHeatmap({ dailyMap, leaderboard, setTooltip }) {
@@ -841,7 +841,5 @@ function AgencyHeatmap({ dailyMap, leaderboard, setTooltip }) {
         </div>
       </>
     );
-  } catch(e) { return <div style={{color:'rgba(255,255,255,0.4)',fontSize:12,padding:'20px 0'}}>Heatmap unavailable</div>; }
-}
-
+  } catch(e) { return null; }
 }
