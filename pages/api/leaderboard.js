@@ -12,19 +12,34 @@ export default async function handler(req, res) {
 
   const { period } = req.query;
 
-  // Build date filter
-  let startDate = null;
+  // Build date filter using Eastern Time
   const now = new Date();
+  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const eastern = new Date(easternStr);
+  const tzOffset = now - eastern; // ms difference between UTC and Eastern
+
+  function easternMidnight() {
+    const e = new Date(easternStr);
+    e.setHours(0,0,0,0);
+    return new Date(e.getTime() + tzOffset);
+  }
+
+  let startDate = null;
   if (period === 'today') {
-    startDate = new Date(now); startDate.setHours(0,0,0,0);
+    startDate = easternMidnight();
   } else if (period === 'week') {
-    startDate = new Date(now);
-    startDate.setDate(startDate.getDate() - startDate.getDay());
-    startDate.setHours(0,0,0,0);
+    const e = new Date(easternStr);
+    e.setDate(e.getDate() - e.getDay());
+    e.setHours(0,0,0,0);
+    startDate = new Date(e.getTime() + tzOffset);
   } else if (period === 'month') {
-    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    const e = new Date(easternStr);
+    e.setDate(1); e.setHours(0,0,0,0);
+    startDate = new Date(e.getTime() + tzOffset);
   } else if (period === 'year') {
-    startDate = new Date(now.getFullYear(), 0, 1);
+    const e = new Date(easternStr);
+    e.setMonth(0); e.setDate(1); e.setHours(0,0,0,0);
+    startDate = new Date(e.getTime() + tzOffset);
   }
 
   try {
