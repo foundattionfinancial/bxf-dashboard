@@ -385,18 +385,22 @@ export default function Dashboard() {
           <div className="period-row">
             <div style={{display:'flex',alignItems:'center',gap:10}}>
               <div className="page-title">Your Production</div>
-              {['today','week','month','year'].includes(period) && (
-                <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <button onClick={() => { const pr = getPeriodRange(period, periodOffset - 1); if (pr) setPeriodOffset(o => o - 1); }}
-                    style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(period, periodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(period,periodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
-                  <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
-                    {(getPeriodRange(period, periodOffset) || {label:''}).label}
-                  </span>
-                  <button onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
-                    style={{background:periodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:periodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:periodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
-                    disabled={periodOffset === 0}>›</button>
-                </div>
-              )}
+              {['today','week','month','year'].includes(period) && (() => {
+                let label = '';
+                let canBack = false;
+                try { const pr = getPeriodRange(period, periodOffset); label = pr?.label || ''; } catch(e) {}
+                try { canBack = !!getPeriodRange(period, periodOffset - 1); } catch(e) {}
+                return (
+                  <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <button onClick={() => { if(canBack) setPeriodOffset(o => o - 1); }}
+                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:canBack?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:canBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                    <span style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>{label}</span>
+                    <button onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
+                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:periodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:periodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                      disabled={periodOffset === 0}>›</button>
+                  </div>
+                );
+              })()}
             </div>
             <div className="pills">
               {['all','today','week','month','year'].map(p => (
@@ -560,18 +564,22 @@ export default function Dashboard() {
                 </select>
               )}
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                {['today','week','month','year'].includes(agencyPeriod) && (
-                  <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <button onClick={() => { const pr = getPeriodRange(agencyPeriod, agencyPeriodOffset - 1); if (pr) setAgencyPeriodOffset(o => o - 1); }}
-                      style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
-                    <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
-                      {(getPeriodRange(agencyPeriod, agencyPeriodOffset) || {label:''}).label}
-                    </span>
-                    <button onClick={() => setAgencyPeriodOffset(o => Math.min(0, o + 1))}
-                      style={{background:agencyPeriodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:agencyPeriodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:agencyPeriodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
-                      disabled={agencyPeriodOffset === 0}>›</button>
-                  </div>
-                )}
+                {['today','week','month','year'].includes(agencyPeriod) && (() => {
+                  let label = '';
+                  let canBack = false;
+                  try { const pr = getPeriodRange(agencyPeriod, agencyPeriodOffset); label = pr?.label || ''; } catch(e) {}
+                  try { canBack = !!getPeriodRange(agencyPeriod, agencyPeriodOffset - 1); } catch(e) {}
+                  return (
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <button onClick={() => { if(canBack) setAgencyPeriodOffset(o => o - 1); }}
+                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:canBack?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:canBack?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+                      <span style={{fontSize:11,color:'rgba(255,255,255,0.8)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>{label}</span>
+                      <button onClick={() => setAgencyPeriodOffset(o => Math.min(0, o + 1))}
+                        style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:agencyPeriodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:agencyPeriodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
+                        disabled={agencyPeriodOffset === 0}>›</button>
+                    </div>
+                  );
+                })()}
                 <div className="pills">
                   {['today','week','month','year','all','custom'].map(p => (
                     <button key={p} className={`pill ${agencyPeriod===p?'active':''}`} onClick={() => setAgencyPeriod(p)}>
