@@ -178,7 +178,7 @@ export default function Dashboard() {
     const day = d.posted_at.slice(0, 10);
     dailyMap[day] = (dailyMap[day] || 0) + parseFloat(d.amount);
   });
-  const maxDay = Math.max(...Object.values(dailyMap), 1);
+  const maxDay = Object.values(dailyMap).reduce((m, v) => v > m ? v : m, 1);
   const bestDay = Object.entries(dailyMap).sort((a, b) => b[1] - a[1])[0];
   const activeDays = Object.keys(dailyMap).length;
   const biggest = deals.reduce((m, d) => parseFloat(d.amount) > m ? parseFloat(d.amount) : m, 0);
@@ -602,7 +602,7 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
               {/* Agency Heatmap */}
-              {agencyData.leaderboard && agencyData.leaderboard.length > 0 && (
+              {agencyData.daily_map && agencyData.leaderboard && agencyData.leaderboard.length > 0 && (
                 <div className="card" style={{marginBottom:14}}>
                   <div className="card-header">
                     <div className="card-title">Agency Production Heatmap</div>
@@ -797,7 +797,7 @@ function AgencyHeatmap({ dailyMap, leaderboard, setTooltip }) {
   const weeks = buildMonthCalendar(safeMap, year, month);
   const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
   const monthTotal = Object.entries(safeMap).filter(([k])=>k.startsWith(monthKey)).reduce((s,[,v])=>s+v,0);
-  const maxDay = Math.max(...Object.values(safeMap), 1);
+  const maxDay = Object.values(safeMap).reduce((m, v) => v > m ? v : m, 1);
   const totalProduction = (leaderboard||[]).reduce((s,u)=>s+u.total,0);
   const totalDeals = (leaderboard||[]).reduce((s,u)=>s+u.count,0);
   const activeAgents = (leaderboard||[]).filter(u=>u.total>0).length;
