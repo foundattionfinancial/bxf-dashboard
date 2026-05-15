@@ -388,11 +388,10 @@ export default function Dashboard() {
               <div className="page-title">Your Production</div>
               {['today','week','month','year'].includes(period) && (
                 <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <button onClick={() => { if (getPeriodRange(period, periodOffset - 1)) setPeriodOffset(o => o - 1); }}
-                    disabled={!getPeriodRange(period, periodOffset - 1)}
+                  <button onClick={() => { const pr = getPeriodRange(period, periodOffset - 1); if (pr) setPeriodOffset(o => o - 1); }}
                     style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(period, periodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(period,periodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
                   <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
-                    {getPeriodRange(period, periodOffset).label}
+                    {(getPeriodRange(period, periodOffset) || {label:''}).label}
                   </span>
                   <button onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
                     style={{background:periodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:periodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:periodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -423,7 +422,45 @@ export default function Dashboard() {
               <div className="card-title">Production Heatmap</div>
               <span style={{fontSize:9,color:'rgba(255,255,255,0.25)',fontFamily:'DM Mono,monospace',letterSpacing:'1px'}}>LAST 365 DAYS</span>
             </div>
-            <Heatmap dailyMap={dailyMap} maxDay={maxDay} setTooltip={setTooltip} />
+            <Heatmap
+              dailyMap={dailyMap}
+              maxDay={maxDay}
+              setTooltip={setTooltip}
+              onDayClick={(date) => {
+                setPeriod('today');
+                // Calculate offset from today
+                const now = new Date();
+                const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+                const eastern = new Date(easternStr);
+                eastern.setHours(0,0,0,0);
+                const clickedE = new Date(date.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                clickedE.setHours(0,0,0,0);
+                const diffDays = Math.round((clickedE - eastern) / 86400000);
+                setPeriodOffset(diffDays);
+              }}
+              onWeekClick={(type, start, end) => {
+                if (type === 'week') {
+                  setPeriod('week');
+                  // Calculate week offset
+                  const now = new Date();
+                  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+                  const eastern = new Date(easternStr);
+                  eastern.setDate(eastern.getDate() - eastern.getDay());
+                  eastern.setHours(0,0,0,0);
+                  const startE = new Date(start.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+                  startE.setHours(0,0,0,0);
+                  const diffWeeks = Math.round((startE - eastern) / (7 * 86400000));
+                  setPeriodOffset(diffWeeks);
+                } else if (type === 'month') {
+                  setPeriod('month');
+                  const now = new Date();
+                  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+                  const eastern = new Date(easternStr);
+                  const diffMonths = (start.getFullYear() - eastern.getFullYear()) * 12 + (start.getMonth() - eastern.getMonth());
+                  setPeriodOffset(diffMonths);
+                }
+              }}
+            />
             <div className="hm-stats">
               <div><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(deals.reduce((s,d)=>s+parseFloat(d.amount),0))}</div></div>
               <div><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div><div className="hm-stat-sub">of 365</div></div>
@@ -527,11 +564,10 @@ export default function Dashboard() {
               <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                 {['today','week','month','year'].includes(agencyPeriod) && (
                   <div style={{display:'flex',alignItems:'center',gap:4}}>
-                    <button onClick={() => { if (getPeriodRange(agencyPeriod, agencyPeriodOffset - 1)) setAgencyPeriodOffset(o => o - 1); }}
-                      disabled={!getPeriodRange(agencyPeriod, agencyPeriodOffset - 1)}
+                    <button onClick={() => { const pr = getPeriodRange(agencyPeriod, agencyPeriodOffset - 1); if (pr) setAgencyPeriodOffset(o => o - 1); }}
                       style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'rgba(255,255,255,0.6)':'rgba(255,255,255,0.2)',fontSize:13,width:26,height:26,cursor:getPeriodRange(agencyPeriod,agencyPeriodOffset-1)?'pointer':'default',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
                     <span style={{fontSize:11,color:'rgba(255,255,255,0.5)',fontFamily:'DM Mono,monospace',minWidth:80,textAlign:'center',letterSpacing:'0.5px'}}>
-                      {getPeriodRange(agencyPeriod, agencyPeriodOffset).label}
+                      {(getPeriodRange(agencyPeriod, agencyPeriodOffset) || {label:''}).label}
                     </span>
                     <button onClick={() => setAgencyPeriodOffset(o => Math.min(0, o + 1))}
                       style={{background:agencyPeriodOffset===0?'rgba(255,255,255,0.02)':'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:agencyPeriodOffset===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)',fontSize:13,width:26,height:26,cursor:agencyPeriodOffset===0?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}
@@ -646,28 +682,124 @@ function BarChart({ deals, setTooltip }) {
   );
 }
 
-function Heatmap({ dailyMap, maxDay, setTooltip }) {
+function Heatmap({ dailyMap, maxDay, setTooltip, onDayClick, onWeekClick }) {
   const now = new Date();
-  const cells = [];
-  for (let i=364; i>=0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate()-i);
-    const key = d.toISOString().slice(0,10);
-    const val = dailyMap[key]||0;
-    let cls = 'hm-cell';
-    if (val>0) {
-      const r = val/maxDay;
-      if (r<0.25) cls+=' l1';
-      else if (r<0.5) cls+=' l2';
-      else if (r<0.75) cls+=' l3';
-      else cls+=' l4';
+
+  // Build months grouping for the last 365 days
+  const months = [];
+  let currentMonth = null;
+  let currentWeeks = [];
+  let currentWeek = [];
+
+  // Start from 364 days ago, padded to Sunday
+  const startDate = new Date(now);
+  startDate.setDate(startDate.getDate() - 364);
+  startDate.setDate(startDate.getDate() - startDate.getDay()); // back to Sunday
+
+  const endDate = new Date(now);
+
+  let cursor = new Date(startDate);
+
+  while (cursor <= endDate) {
+    const monthKey = cursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const key = cursor.toISOString().slice(0, 10);
+    const val = dailyMap[key] || 0;
+    const isInRange = cursor <= endDate && cursor >= new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+
+    currentWeek.push({ date: new Date(cursor), key, val, inRange: isInRange });
+
+    if (cursor.getDay() === 6 || cursor >= endDate) {
+      // End of week — calc week total
+      const weekTotal = currentWeek.reduce((s, d) => s + d.val, 0);
+      const weekStart = new Date(currentWeek[0].date);
+      const weekEnd = new Date(currentWeek[currentWeek.length - 1].date);
+
+      if (currentMonth !== monthKey) {
+        if (currentMonth !== null) {
+          const monthTotal = currentWeeks.reduce((s, w) => s + w.total, 0);
+          months.push({ label: currentMonth, weeks: currentWeeks, total: monthTotal });
+          currentWeeks = [];
+        }
+        currentMonth = monthKey;
+      }
+
+      currentWeeks.push({ days: [...currentWeek], total: weekTotal, start: weekStart, end: weekEnd });
+      currentWeek = [];
     }
-    const dateStr = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-    cells.push(<div key={key} className={cls}
-      onMouseMove={e => setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
-      onMouseLeave={() => setTooltip(null)} />);
+
+    cursor.setDate(cursor.getDate() + 1);
   }
-  return <div className="heatmap-grid">{cells}</div>;
+
+  // Push last month
+  if (currentWeeks.length > 0) {
+    const monthTotal = currentWeeks.reduce((s, w) => s + w.total, 0);
+    months.push({ label: currentMonth, weeks: currentWeeks, total: monthTotal });
+  }
+
+  return (
+    <div style={{overflowX:'auto', paddingBottom:8}}>
+      {months.map((month, mi) => (
+        <div key={month.label} style={{marginBottom:16}}>
+          {/* Month header */}
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:8,cursor:'pointer'}}
+            onClick={() => {
+              const parts = month.label.split(' ');
+              const mIdx = ['January','February','March','April','May','June','July','August','September','October','November','December'].indexOf(parts[0]);
+              const yr = parseInt(parts[1]);
+              if (mIdx !== -1) onWeekClick && onWeekClick('month', new Date(yr, mIdx, 1), new Date(yr, mIdx+1, 0));
+            }}>
+            <span style={{fontFamily:'DM Mono,monospace',fontSize:10,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#60a5fa',whiteSpace:'nowrap'}}>{month.label}</span>
+            <div style={{flex:1,height:'1px',background:'rgba(37,99,235,0.15)'}} />
+            <span style={{fontFamily:'DM Mono,monospace',fontSize:10,color:'rgba(255,255,255,0.4)',whiteSpace:'nowrap'}}>{fmt(month.total)}</span>
+          </div>
+
+          {/* Week rows */}
+          {month.weeks.map((week, wi) => (
+            <div key={wi} style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+              {/* Day cells */}
+              <div style={{display:'flex',gap:2,flex:1}}>
+                {week.days.map((day, di) => {
+                  const val = day.val;
+                  const inRange = day.inRange && day.date <= now;
+                  let bg = 'rgba(255,255,255,0.03)';
+                  if (inRange && val > 0) {
+                    const r = val / maxDay;
+                    if (r < 0.25) bg = 'rgba(37,99,235,0.15)';
+                    else if (r < 0.5) bg = 'rgba(37,99,235,0.32)';
+                    else if (r < 0.75) bg = 'rgba(59,130,246,0.55)';
+                    else bg = 'rgba(96,165,250,0.82)';
+                  }
+                  const dateStr = day.date.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+                  return (
+                    <div key={di}
+                      style={{width:14,height:14,borderRadius:2,background:bg,cursor:inRange?'pointer':'default',transition:'transform 0.1s',flexShrink:0}}
+                      onMouseMove={e => inRange && setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:val>0?fmt(val):'No sales',deals:0})}
+                      onMouseLeave={() => setTooltip(null)}
+                      onClick={() => inRange && onDayClick && onDayClick(day.date)}
+                    />
+                  );
+                })}
+                {/* Pad to 7 cells */}
+                {Array(7 - week.days.length).fill(0).map((_, i) => (
+                  <div key={`pad-${i}`} style={{width:14,height:14,flexShrink:0}} />
+                ))}
+              </div>
+              {/* Week total */}
+              {week.total > 0 && (
+                <div
+                  style={{fontFamily:'DM Mono,monospace',fontSize:9,color:'rgba(255,255,255,0.3)',whiteSpace:'nowrap',cursor:'pointer',minWidth:50,textAlign:'right'}}
+                  onClick={() => onWeekClick && onWeekClick('week', week.start, week.end)}
+                  title={`${week.start.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${week.end.toLocaleDateString('en-US',{month:'short',day:'numeric'})}: ${fmt(week.total)}`}>
+                  {fmt(week.total)}
+                </div>
+              )}
+              {week.total === 0 && <div style={{minWidth:50}} />}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function Leaderboard({ data, currentUser }) {
