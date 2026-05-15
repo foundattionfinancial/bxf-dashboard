@@ -22,7 +22,7 @@ const AGENCY_HIERARCHY = {
   'Agency Owner- The Key': [
     'THE KEY AGENCY', 'AA FINANCIAL', 'FORMULA FINANCIAL'
   ],
-  'Agency Owner- AA Financial':      ['AA FINANCIAL'],
+  'Agency Owner- AA FINANCIAL':      ['AA FINANCIAL'],
   'Agency Owner- Formula Financial': ['FORMULA FINANCIAL'],
   'Agency Owner- Stark Financial':   ['Stark Financial'],
 };
@@ -237,4 +237,5 @@ export default async function handler(req, res) {
     console.error('Agency error:', e);
     res.status(500).json({ error: e.message });
   }
+}
 }
