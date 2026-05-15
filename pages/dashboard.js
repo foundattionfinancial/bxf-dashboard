@@ -42,48 +42,49 @@ function getBadgeClass(role) {
   return 'badge-gold';
 }
 
-function getEasternMidnight() {
-  // Get current time in Eastern (UTC-4 EDT / UTC-5 EST)
+function getPeriodRange(period, offset) {
   const now = new Date();
-  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  eastern.setHours(0, 0, 0, 0);
-  // Convert back to UTC offset
-  const offset = now - new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return new Date(eastern.getTime() + offset);
+  const easternStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const eastern = new Date(easternStr);
+  const tzOff = now - eastern;
+  let start, end, label;
+  if (period === 'today') {
+    const e = new Date(eastern); e.setDate(e.getDate() + offset); e.setHours(0,0,0,0);
+    start = new Date(e.getTime() + tzOff);
+    const eEnd = new Date(e); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
+    label = offset === 0 ? 'Today' : e.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  } else if (period === 'week') {
+    const e = new Date(eastern); e.setDate(e.getDate() - e.getDay() + offset * 7); e.setHours(0,0,0,0);
+    start = new Date(e.getTime() + tzOff);
+    const eEnd = new Date(e); eEnd.setDate(eEnd.getDate() + 6); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
+    label = offset === 0 ? 'This Week' : `${e.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${eEnd.toLocaleDateString('en-US',{month:'short',day:'numeric'})}`;
+  } else if (period === 'month') {
+    const e = new Date(eastern); e.setMonth(e.getMonth() + offset); e.setDate(1); e.setHours(0,0,0,0);
+    start = new Date(e.getTime() + tzOff);
+    const eEnd = new Date(e); eEnd.setMonth(eEnd.getMonth() + 1); eEnd.setDate(0); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
+    label = offset === 0 ? 'This Month' : e.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  } else if (period === 'year') {
+    const e = new Date(eastern); e.setFullYear(e.getFullYear() + offset); e.setMonth(0); e.setDate(1); e.setHours(0,0,0,0);
+    start = new Date(e.getTime() + tzOff);
+    const eEnd = new Date(e); eEnd.setFullYear(eEnd.getFullYear() + 1); eEnd.setDate(eEnd.getDate() - 1); eEnd.setHours(23,59,59,999); end = new Date(eEnd.getTime() + tzOff);
+    label = offset === 0 ? 'Year to Date' : e.getFullYear().toString();
+  }
+  return { start, end, label: label || '' };
 }
 
-function getEasternSunday() {
-  const now = new Date();
-  const eastern = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  eastern.setDate(eastern.getDate() - eastern.getDay());
-  eastern.setHours(0, 0, 0, 0);
-  const offset = now - new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return new Date(eastern.getTime() + offset);
-}
-
-function filterByPeriod(deals, period, customStart, customEnd) {
-  const now = new Date();
-  const easternNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-  return deals.filter(d => {
-    const dt = new Date(d.posted_at);
-    if (period === 'today') { return dt >= getEasternMidnight(); }
-    if (period === 'week') { return dt >= getEasternSunday(); }
-    if (period === 'month') {
-      const e = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      return new Date(d.posted_at).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', year: 'numeric' }) ===
-        e.toLocaleString('en-US', { month: 'numeric', year: 'numeric' });
-    }
-    if (period === 'year') {
-      const e = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
-      return new Date(d.posted_at).toLocaleString('en-US', { timeZone: 'America/New_York', year: 'numeric' }) === e.getFullYear().toString();
-    }
-    if (period === 'custom' && customStart && customEnd) {
+function filterByPeriod(deals, period, customStart, customEnd, offset = 0) {
+  if (period === 'all') return deals;
+  if (period === 'custom' && customStart && customEnd) {
+    return deals.filter(d => {
+      const dt = new Date(d.posted_at);
       const s = new Date(customStart); s.setHours(0,0,0,0);
       const e = new Date(customEnd); e.setHours(23,59,59,999);
       return dt >= s && dt <= e;
-    }
-    return true;
-  });
+    });
+  }
+  const { start, end } = getPeriodRange(period, offset);
+  if (!start || !end) return deals;
+  return deals.filter(d => new Date(d.posted_at) >= start && new Date(d.posted_at) <= end);
 }
 
 function groupDealsByMonth(deals) {
