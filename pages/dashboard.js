@@ -2,31 +2,50 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-const BLUEPRINT_LOGO = "/* unchanged - paste your existing base64 string here */";
-const FAVICON = "/* unchanged - paste your existing base64 string here */";
+// ============================================================================
+// LOGOS
+// Paste your existing base64 strings into the placeholders below. The keys
+// are now the canonical agency *role names* (matching what /api/agency
+// returns) — this makes the same map usable for the page header, the
+// breakdown cards, AND the ticker.
+// ============================================================================
 
+const BLUEPRINT_LOGO = "/* PASTE BLUEPRINT BASE64 HERE - JPEG */";
+const FAVICON         = "/* PASTE FAVICON BASE64 HERE - PNG */";
+
+// AGENCY_LOGOS keyed by canonical role name.
+//   src  - base64 image data (without the data:... prefix)
+//   mime - 'jpeg' or 'png' (matches your existing data)
+//   name - display name
 const AGENCY_LOGOS = {
-  'Agency Owner- The Foundation':    { src: "/* unchanged */", name: 'The Foundation' },
-  'Agency Owner- AA FINANCIAL':      { src: "/* unchanged */", name: 'AA Financial' },
-  'Agency Owner- The Key':           { src: "/* unchanged */", name: 'The Key Agency' },
-  'Agency Owner- Formula Financial': { src: "/* unchanged */", name: 'Formula Financial' },
-  'Agency Owner- Stark Financial':   { src: "/* unchanged */", name: 'Stark Financial' },
+  'Blueprint Agency':  { src: BLUEPRINT_LOGO,                              mime: 'jpeg', name: 'Blueprint Agency' },
+  'The Foundation':    { src: "/* PASTE FOUNDATION BASE64 HERE */",        mime: 'png',  name: 'The Foundation' },
+  'THE KEY AGENCY':    { src: "/* PASTE KEY BASE64 HERE */",               mime: 'png',  name: 'The Key Agency' },
+  'AA FINANCIAL':      { src: "/* PASTE AA FINANCIAL BASE64 HERE */",      mime: 'png',  name: 'AA Financial' },
+  'FORMULA FINANCIAL': { src: "/* PASTE FORMULA FINANCIAL BASE64 HERE */", mime: 'png',  name: 'Formula Financial' },
+  'Stark Financial':   { src: "/* PASTE STARK BASE64 HERE */",             mime: 'png',  name: 'Stark Financial' },
 };
 
-const AGENCY_OWNER_ROLES = [
-  'Agency Owner- Blueprint','Agency Owner- The Foundation','Agency Owner- The Key',
-  'Agency Owner- AA FINANCIAL','Agency Owner- Formula Financial','Agency Owner- Stark Financial',
-];
-
-// NEW: Network display names for owners that see multiple sub-agencies.
-// Used as the top-of-page label when no filter is applied and the owner
-// rolls up more than one sub-agency. Disambiguates "Foundation Network"
-// (the rollup) from "The Foundation" (the sub-agency card in breakdown).
-const NETWORK_NAMES = {
-  'Agency Owner- Blueprint': 'Blueprint Network',
-  'Agency Owner- The Foundation': 'Foundation Network',
-  'Agency Owner- The Key': 'Key Network',
+// Owner role -> the agency they own. Used for the page header / favicon.
+const OWNER_TO_AGENCY = {
+  'Agency Owner- Blueprint':         'Blueprint Agency',
+  'Agency Owner- The Foundation':    'The Foundation',
+  'Agency Owner- The Key':           'THE KEY AGENCY',
+  'Agency Owner- AA FINANCIAL':      'AA FINANCIAL',
+  'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
+  'Agency Owner- Stark Financial':   'Stark Financial',
 };
+
+const AGENCY_OWNER_ROLES = Object.keys(OWNER_TO_AGENCY);
+
+const DIRECT = '__direct__';
+
+function logoSrc(logo) {
+  if (!logo || !logo.src || logo.src.startsWith('/*')) return null;
+  return `data:image/${logo.mime || 'png'};base64,${logo.src}`;
+}
+
+// ============================================================================
 
 const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -54,9 +73,6 @@ function getEasternNow() {
   return new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
 }
 
-// YYYY-MM-DD from a Date's *local* parts (matches the format that
-// <input type="date"> already produces for the custom-range UI, so the
-// /api/agency endpoint sees a consistent shape).
 function ymdLocal(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -64,9 +80,6 @@ function ymdLocal(d) {
   return `${y}-${m}-${day}`;
 }
 
-// NEW: compute {start, end, label} for an agency-tab period + offset.
-// offset is in units of the period (-1 = previous day/week/month, 0 = current).
-// start/end are YYYY-MM-DD strings ready to send to /api/agency.
 function getPeriodRange(period, offset) {
   const now = getEasternNow();
 
@@ -147,19 +160,16 @@ export default function Dashboard() {
   const [agencyLoading, setAgencyLoading] = useState(false);
   const [agencyCustomStart, setAgencyCustomStart] = useState('');
   const [agencyCustomEnd, setAgencyCustomEnd] = useState('');
-  // NEW: offset for prev/next nav (in units of agencyPeriod).
-  // 0 = "now", -1 = "previous day/week/month", etc. Reset on period change.
   const [agencyDateOffset, setAgencyDateOffset] = useState(0);
   const [tooltip, setTooltip] = useState(null);
   const [showAllDeals, setShowAllDeals] = useState(false);
   const [tickerDeals, setTickerDeals] = useState([]);
 
-  // FIXED: isOwner / ownerRole now declared BEFORE the ticker useEffect that
-  // references them. Previous version had a temporal-dead-zone bug — the
-  // ticker effect's deps array `[isOwner]` evaluated before `const isOwner`,
-  // which should have thrown ReferenceError at render time.
+  // Declared before any useEffect that references them (avoids TDZ bug).
   const isOwner = user && (user.roles||[]).some(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerRole = user && (user.roles||[]).find(r => AGENCY_OWNER_ROLES.includes(r));
+  const ownerAgencyKey = ownerRole ? OWNER_TO_AGENCY[ownerRole] : null;
+  const ownerLogo = ownerAgencyKey ? AGENCY_LOGOS[ownerAgencyKey] : null;
 
   useEffect(() => {
     if (!isOwner) return;
@@ -183,8 +193,6 @@ export default function Dashboard() {
     fetch('/api/leaderboard?period=' + lbPeriod).then(r => r.json()).then(d => setLeaderboard(Array.isArray(d) ? d : []));
   }, [lbPeriod]);
 
-  // NEW: reset the prev/next offset whenever the period changes so jumping
-  // from "month" (offset -3) to "week" doesn't carry over a stale offset.
   useEffect(() => { setAgencyDateOffset(0); }, [agencyPeriod]);
 
   useEffect(() => {
@@ -199,9 +207,6 @@ export default function Dashboard() {
       params.set('start', agencyCustomStart);
       params.set('end', agencyCustomEnd);
     } else if (agencyDateOffset !== 0 && ['today','week','month'].includes(agencyPeriod)) {
-      // NEW: when navigating via prev/next, send the explicit window.
-      // We keep period=today/week/month for label/back-compat — the API
-      // prioritizes start/end when present.
       const range = getPeriodRange(agencyPeriod, agencyDateOffset);
       params.set('start', range.start);
       params.set('end', range.end);
@@ -230,31 +235,44 @@ export default function Dashboard() {
   const dealsToShow = showAllDeals ? deals : deals.slice(0,30);
   const groupedDeals = groupByMonth(dealsToShow);
 
-  // NEW: Agency-tab computed values for cleaner JSX below.
-  const hasMultiAgencies = (agencyData?.agency_summaries?.length || 0) > 1;
-  const networkName = NETWORK_NAMES[ownerRole];
-  const ownerLogoName = ownerRole && AGENCY_LOGOS[ownerRole] ? AGENCY_LOGOS[ownerRole].name : null;
-  // Title resolution: filtered → that sub-agency's label;
-  //                    multi-agency rollup → "Foundation Network" etc.;
-  //                    single-agency → owner's name.
+  // ----- Agency tab computed values -----
+  const summaries = agencyData?.agency_summaries || [];
+  const hasBreakdown = summaries.length > 1; // single-agency owners get no breakdown
+
+  // Title resolution:
+  //   - filter active -> the filtered sub-agency's label (incl. Direct)
+  //   - no filter     -> the OWNER'S own agency name (e.g. "The Foundation")
   const agencyTitle = (() => {
-    if (agencyFilter && agencyData?.agency_summaries) {
-      const found = agencyData.agency_summaries.find(a => a.role === agencyFilter);
+    if (agencyFilter) {
+      const found = summaries.find(a => a.role === agencyFilter);
       if (found) return found.label;
     }
-    if (hasMultiAgencies && networkName) return networkName;
-    return ownerLogoName || 'Agency Overview';
+    return (ownerLogo && ownerLogo.name) || agencyData?.self_label || 'Agency Overview';
   })();
-  const agencySubtitle = (!agencyFilter && hasMultiAgencies)
-    ? `Showing all downline agencies (${agencyData.agency_summaries.length})`
-    : null;
+
   const agencyPeriodLabel = ['today','week','month'].includes(agencyPeriod)
     ? getPeriodRange(agencyPeriod, agencyDateOffset).label
     : null;
   const agencyDailyMap = agencyData?.daily_map || {};
   const agencyMaxDay = Object.values(agencyDailyMap).reduce((m,v) => v>m?v:m, 1);
 
+  // Logo to display in the agency page header — switches with the filter so
+  // drilling into "AA Financial" shows AA's logo, not the owner's.
+  const headerLogoKey = (() => {
+    if (agencyFilter && agencyFilter !== DIRECT) {
+      const found = summaries.find(a => a.role === agencyFilter);
+      if (found) return found.role;
+    }
+    if (agencyFilter === DIRECT) {
+      return agencyData?.self_role || ownerAgencyKey;
+    }
+    return ownerAgencyKey;
+  })();
+  const headerLogo = headerLogoKey ? AGENCY_LOGOS[headerLogoKey] : null;
+
   if (!user) return null;
+
+  const faviconSrc = logoSrc({ src: FAVICON, mime: 'png' });
 
   return (
     <>
@@ -262,14 +280,14 @@ export default function Dashboard() {
         <title>Blueprint Agency Sales</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-        <link rel="icon" type="image/png" href={`data:image/png;base64,${FAVICON}`} />
+        {faviconSrc && <link rel="icon" type="image/png" href={faviconSrc} />}
       </Head>
       <style>{`
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
         body{background:#06080f;color:#fff;font-family:'DM Sans',sans-serif;min-height:100vh}
         .header{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:60px;border-bottom:1px solid rgba(255,255,255,0.05);background:rgba(6,8,15,0.98);position:sticky;top:0;z-index:200}
         .brand{display:flex;align-items:center;gap:10px}
-        .brand-logo{width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0}
+        .brand-logo{width:32px;height:32px;border-radius:50%;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,.05)}
         .brand-logo img{width:100%;height:100%;object-fit:cover;display:block}
         .brand-name{font-family:'Playfair Display',serif;font-size:15px;font-style:italic;color:#fff;letter-spacing:.5px}
         .nav-tabs{display:flex;gap:2px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:8px;padding:3px}
@@ -286,7 +304,6 @@ export default function Dashboard() {
         .content{padding:24px;max-width:1280px;margin:0 auto}
         .period-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
         .page-title{font-family:'Playfair Display',serif;font-size:20px;font-style:italic;color:#fff}
-        .agency-subtitle{font-size:12px;color:rgba(255,255,255,.55);margin-top:4px;font-style:italic;letter-spacing:.2px}
         .pills{display:flex;gap:2px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:7px;padding:3px;flex-wrap:wrap}
         .pill{padding:4px 14px;border:none;background:transparent;color:rgba(255,255,255,.8);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;cursor:pointer;border-radius:5px;transition:all .15s;text-transform:uppercase;letter-spacing:.5px}
         .pill.active{background:rgba(37,99,235,.15);color:#60a5fa;border:1px solid rgba(37,99,235,.25)}
@@ -365,13 +382,21 @@ export default function Dashboard() {
         .agency-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .date-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .date-input{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:#fff;font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;outline:none;colorscheme:dark}
-        .breakdown-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
-        .breakdown-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:12px 16px;cursor:pointer;transition:border-color .15s}
-        .breakdown-card:hover{border-color:rgba(255,255,255,.12)}
-        .breakdown-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:8px}
-        .breakdown-value{font-family:'DM Mono',monospace;font-size:20px;color:#60a5fa;margin-bottom:4px}
-        .breakdown-sub{font-size:11px;color:rgba(255,255,255,.7)}
-        /* NEW: Period prev/next nav bar for agency tab (today/week/month) */
+        .breakdown-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
+        .breakdown-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:6px}
+        .breakdown-card:hover{border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.03)}
+        .breakdown-head{display:flex;align-items:center;gap:10px}
+        .breakdown-logo{width:28px;height:28px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,.06);padding:2px;flex-shrink:0}
+        .breakdown-logo-placeholder{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.4);flex-shrink:0}
+        .breakdown-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;line-height:1.2}
+        .breakdown-value{font-family:'DM Mono',monospace;font-size:22px;color:#60a5fa;margin-top:4px}
+        .breakdown-sub{font-size:11px;color:rgba(255,255,255,.65);font-family:'DM Mono',monospace}
+        .breakdown-card.direct{border-color:rgba(96,165,250,.18);background:linear-gradient(135deg,rgba(37,99,235,.05),rgba(255,255,255,.02))}
+        .breakdown-card.direct:hover{border-color:rgba(96,165,250,.4)}
+        .breakdown-card.direct .breakdown-label{color:#93c5fd}
+        .agency-header-logo{width:64px;height:64px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center}
+        .agency-header-logo img{width:100%;height:100%;object-fit:contain;padding:4px}
+        .agency-header-logo-placeholder{font-family:'Playfair Display',serif;font-size:24px;font-style:italic;color:rgba(255,255,255,.4)}
         .period-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:14px;padding:12px 18px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
         .period-nav-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;line-height:1;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0}
         .period-nav-btn:hover:not(:disabled){background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25)}
@@ -381,16 +406,26 @@ export default function Dashboard() {
         .tooltip{position:fixed;background:#0d1020;border:1px solid rgba(37,99,235,.3);border-radius:8px;padding:8px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#fff;pointer-events:none;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.6)}
         .tooltip-date{color:rgba(255,255,255,.6);font-size:10px;margin-bottom:3px}
         .tooltip-amount{color:#60a5fa;font-weight:500}
-        @media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}.content{padding:14px}.header{padding:0 14px}.brand-name{display:none}.period-nav-label{min-width:120px;font-size:10px}}
-        .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:32px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
-        .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 60s linear infinite}
+        @media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}.content{padding:14px}.header{padding:0 14px}.brand-name{display:none}.period-nav-label{min-width:120px;font-size:10px}.agency-header-logo{width:48px;height:48px}}
+        /* ---------- Ticker ---------- */
+        .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:36px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
+        .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll linear infinite}
         .ticker-track:hover{animation-play-state:paused}
         @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-        .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 24px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06)}
-        .ticker-name{color:rgba(255,255,255,0.7);font-weight:500}
-        .ticker-amount{color:#60a5fa;font-weight:700}
+        .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:36px;transition:background .3s}
+        .ticker-name{color:rgba(255,255,255,0.78);font-weight:500}
+        .ticker-amount{color:#60a5fa;font-weight:700;transition:text-shadow .3s,color .3s}
         .ticker-time{color:rgba(255,255,255,0.35);font-size:10px}
-        .ticker-dot{width:5px;height:5px;border-radius:50%;background:#60a5fa;opacity:0.5;flex-shrink:0}
+        .ticker-dot{width:6px;height:6px;border-radius:50%;background:#60a5fa;opacity:0.45;flex-shrink:0;transition:all .3s}
+        .ticker-logo{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+        .ticker-agency-text{font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:1px 5px;letter-spacing:.5px;text-transform:uppercase}
+        /* Recent-sale glow (deals in the last hour) */
+        .ticker-item.recent{background:radial-gradient(ellipse at center,rgba(96,165,250,0.10) 0%,transparent 75%)}
+        .ticker-item.recent .ticker-amount{color:#93c5fd;text-shadow:0 0 10px rgba(96,165,250,.7)}
+        .ticker-item.recent .ticker-name{color:#fff}
+        .ticker-item.recent .ticker-dot{background:#60a5fa;opacity:1;animation:pulse-dot 1.8s ease-in-out infinite}
+        .ticker-item.recent .ticker-logo{border-color:rgba(96,165,250,.5);box-shadow:0 0 8px rgba(96,165,250,.4)}
+        @keyframes pulse-dot{0%,100%{box-shadow:0 0 4px rgba(96,165,250,.6);opacity:1}50%{box-shadow:0 0 14px rgba(96,165,250,.95);opacity:.7}}
       `}</style>
 
       {tooltip && (
@@ -402,7 +437,11 @@ export default function Dashboard() {
 
       <header className="header">
         <div className="brand">
-          <div className="brand-logo"><img src={`data:image/jpeg;base64,${BLUEPRINT_LOGO}`} alt="Blueprint" /></div>
+          <div className="brand-logo">
+            {logoSrc(AGENCY_LOGOS['Blueprint Agency']) && (
+              <img src={logoSrc(AGENCY_LOGOS['Blueprint Agency'])} alt="Blueprint" />
+            )}
+          </div>
           <span className="brand-name">Blueprint Agency Sales</span>
         </div>
         <div className="nav-tabs">
@@ -515,26 +554,28 @@ export default function Dashboard() {
         <div className="content">
           <div className="agency-header">
             <div style={{display:'flex',alignItems:'center',gap:16}}>
-              {ownerRole&&AGENCY_LOGOS[ownerRole]&&(
-                <div style={{width:64,height:64,borderRadius:12,overflow:'hidden',background:'rgba(255,255,255,.03)',border:'1px solid rgba(255,255,255,.08)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  <img src={AGENCY_LOGOS[ownerRole].src} alt="" style={{width:'100%',height:'100%',objectFit:'contain',padding:4}}/>
-                </div>
-              )}
+              <div className="agency-header-logo">
+                {logoSrc(headerLogo) ? (
+                  <img src={logoSrc(headerLogo)} alt=""/>
+                ) : (
+                  <span className="agency-header-logo-placeholder">
+                    {(agencyTitle || 'A')[0]}
+                  </span>
+                )}
+              </div>
               <div>
-                {/* FIXED: title now resolves to "Foundation Network" / "Key Network" /
-                    "Blueprint Network" when no filter is set AND owner sees multiple
-                    sub-agencies. When a filter is set, shows the sub-agency's label.
-                    Otherwise falls back to the owner's name. */}
+                {/* Title shows the OWNER's own agency name (e.g. "The Foundation")
+                    when no filter is active, or the drilled-into bucket label
+                    when a filter is set. No more "Foundation Network". */}
                 <div className="page-title">{agencyTitle}</div>
-                {agencySubtitle && <div className="agency-subtitle">{agencySubtitle}</div>}
                 <div className={`agency-role-badge ${getBadgeClass(ownerRole)}`}>{ownerRole}</div>
               </div>
             </div>
             <div className="agency-controls">
-              {agencyData?.agency_summaries&&agencyData.agency_summaries.length>1&&(
+              {hasBreakdown && (
                 <select className="agency-select" value={agencyFilter} onChange={e=>setAgencyFilter(e.target.value)}>
                   <option value="">All Agencies</option>
-                  {agencyData.agency_summaries.map(a=><option key={a.role} value={a.role}>{a.label}</option>)}
+                  {summaries.map(a=><option key={a.role} value={a.role}>{a.label}</option>)}
                 </select>
               )}
               <div className="pills">
@@ -554,9 +595,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* NEW: Prev/next navigation for today/week/month periods.
-              Hidden for year/all/custom (year already covers a fixed range;
-              all is by definition unbounded; custom has its own date inputs). */}
           {['today','week','month'].includes(agencyPeriod) && agencyPeriodLabel && (
             <div className="period-nav">
               <button
@@ -588,28 +626,37 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Total Deals</div><div className="stat-value">{agencyData.summary?.total_deals||0}</div></div>
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
-              {!agencyFilter&&agencyData.agency_summaries&&agencyData.agency_summaries.length>1&&(
+              {!agencyFilter && hasBreakdown && (
                 <div className="card" style={{marginBottom:14}}>
                   <div className="card-header"><div className="card-title">Agency Breakdown</div></div>
                   <div className="breakdown-grid">
-                    {agencyData.agency_summaries.map(a=>(
-                      <div key={a.role} className="breakdown-card" onClick={()=>setAgencyFilter(a.role)}>
-                        <div className="breakdown-label">{a.label}</div>
-                        <div className="breakdown-value">{fmt(a.total_production)}</div>
-                        <div className="breakdown-sub">{a.total_deals} deals · {a.agent_count} agents</div>
-                      </div>
-                    ))}
+                    {summaries.map(a=>{
+                      const logoKey = a.is_direct ? (a.self_role || ownerAgencyKey) : a.role;
+                      const logo = AGENCY_LOGOS[logoKey];
+                      const src = logoSrc(logo);
+                      return (
+                        <div
+                          key={a.role}
+                          className={`breakdown-card ${a.is_direct ? 'direct' : ''}`}
+                          onClick={()=>setAgencyFilter(a.role)}
+                        >
+                          <div className="breakdown-head">
+                            {src ? (
+                              <img className="breakdown-logo" src={src} alt=""/>
+                            ) : (
+                              <div className="breakdown-logo-placeholder">{a.label[0]}</div>
+                            )}
+                            <div className="breakdown-label">{a.label}</div>
+                          </div>
+                          <div className="breakdown-value">{fmt(a.total_production)}</div>
+                          <div className="breakdown-sub">{a.total_deals} deals · {a.agent_count} agents</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* NEW: Production Heatmap on agency tab.
-                  Uses agencyData.daily_map (returned by /api/agency) and the
-                  same MonthHeatmap component as the Personal tab. Note: the
-                  heatmap renders data only for days falling inside the current
-                  period window — when period=today/week, most cells will be
-                  empty. That's expected; the heatmap is most useful on
-                  month/year/all/custom. */}
               <div className="card">
                 <div className="card-header"><div className="card-title">Production Heatmap</div></div>
                 <MonthHeatmap dailyMap={agencyDailyMap} maxDay={agencyMaxDay} setTooltip={setTooltip}/>
@@ -648,26 +695,33 @@ function timeAgo(iso) {
 }
 
 function DealTicker({ deals }) {
+  // Render the list twice for the seamless loop. Slow speed: ~7s per item,
+  // floored at 90s total so a short list isn't a blur.
   const items = [...deals, ...deals];
-  const speed = Math.max(deals.length * 3.5, 30);
+  const speed = Math.max(deals.length * 7, 90);
+  const now = Date.now();
   return (
     <div className="ticker-wrap">
       <div className="ticker-track" style={{animationDuration: `${speed}s`}}>
-        {items.map((deal, i) => (
-          <div key={i} className="ticker-item">
-            <div className="ticker-dot" />
-            <span className="ticker-name">{deal.display_name || 'Agent'}</span>
-            {deal.agency && (
-              <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:"'DM Mono',monospace",
-                background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',
-                borderRadius:3,padding:'1px 5px',letterSpacing:'0.5px',textTransform:'uppercase'}}>
-                {deal.agency}
-              </span>
-            )}
-            <span className="ticker-amount">{fmt(parseFloat(deal.amount))}</span>
-            <span className="ticker-time">{timeAgo(deal.posted_at)}</span>
-          </div>
-        ))}
+        {items.map((deal, i) => {
+          const ageMs = now - new Date(deal.posted_at).getTime();
+          const isRecent = ageMs >= 0 && ageMs < 3600 * 1000; // last hour
+          const logo = deal.agency ? AGENCY_LOGOS[deal.agency] : null;
+          const src = logoSrc(logo);
+          return (
+            <div key={i} className={`ticker-item ${isRecent ? 'recent' : ''}`}>
+              <div className="ticker-dot" />
+              {src ? (
+                <img className="ticker-logo" src={src} alt={deal.agency || ''} title={logo?.name || deal.agency || ''}/>
+              ) : deal.agency ? (
+                <span className="ticker-agency-text">{deal.agency}</span>
+              ) : null}
+              <span className="ticker-name">{deal.display_name || 'Agent'}</span>
+              <span className="ticker-amount">{fmt(parseFloat(deal.amount))}</span>
+              <span className="ticker-time">{timeAgo(deal.posted_at)}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
