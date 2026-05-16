@@ -118,6 +118,71 @@ function parseEasternYmd(ymd, endOfDay = false) {
   return endOfDay ? easternToUtc(+y, +mo, +d, 23, 59, 59) : easternToUtc(+y, +mo, +d, 0, 0, 0);
 }
 
+// ---------- Discord data cache ----------
+// The roles + full-member fetch is the bottleneck — a guild with thousands of
+// members can take 10–60s to paginate. Module-level cache means the first hit
+// per warm Vercel instance pays the cost, then subsequent /api/agency calls
+// (period changes, drilling around) finish in under a second.
+let DISCORD_CACHE = { at: 0, data: null, pending: null };
+const DISCORD_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+async function fetchAllDiscordData() {
+  const rolesP = fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
+    headers: { Authorization: `Bot ${BOT_TOKEN}` },
+  }).then(r => r.ok ? r.json() : null);
+
+  const membersP = (async () => {
+    let all = [];
+    let after = '0';
+    while (true) {
+      const r = await fetch(
+        `https://discord.com/api/guilds/${GUILD_ID}/members?limit=1000&after=${after}`,
+        { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
+      );
+      if (!r.ok) break;
+      const m = await r.json();
+      if (!m.length) break;
+      all = all.concat(m);
+      if (m.length < 1000) break;
+      after = m[m.length - 1].user.id;
+    }
+    return all;
+  })();
+
+  const [allRoles, allMembers] = await Promise.all([rolesP, membersP]);
+  if (!allRoles) throw new Error('Failed to fetch roles');
+
+  const roleIdMap = {};
+  const roleIcons = {};
+  allRoles.forEach(r => {
+    roleIdMap[r.name] = r.id;
+    if (r.icon) {
+      roleIcons[r.name] = `https://cdn.discordapp.com/role-icons/${r.id}/${r.icon}.png?size=128`;
+    }
+  });
+  return { allRoles, roleIdMap, roleIcons, allMembers };
+}
+
+async function getDiscordData() {
+  if (DISCORD_CACHE.data && Date.now() - DISCORD_CACHE.at < DISCORD_CACHE_TTL_MS) {
+    return DISCORD_CACHE.data;
+  }
+  // Deduplicate concurrent cache-miss requests. If another invocation is
+  // already fetching, await its promise instead of starting a parallel fetch.
+  if (DISCORD_CACHE.pending) return DISCORD_CACHE.pending;
+  DISCORD_CACHE.pending = (async () => {
+    try {
+      const data = await fetchAllDiscordData();
+      DISCORD_CACHE = { at: Date.now(), data, pending: null };
+      return data;
+    } catch (e) {
+      DISCORD_CACHE.pending = null;
+      throw e;
+    }
+  })();
+  return DISCORD_CACHE.pending;
+}
+
 // ============================================================================
 
 export default async function handler(req, res) {
@@ -167,36 +232,8 @@ export default async function handler(req, res) {
   const heatmapStart = ytdStart.getTime() < heatmapFloor.getTime() ? heatmapFloor : ytdStart;
 
   try {
-    // ----- Discord roles + role icons -----
-    const rolesRes = await fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
-      headers: { Authorization: `Bot ${BOT_TOKEN}` },
-    });
-    if (!rolesRes.ok) return res.status(500).json({ error: 'Failed to fetch roles' });
-    const allRoles = await rolesRes.json();
-    const roleIdMap = {};
-    const roleIcons = {};
-    allRoles.forEach(r => {
-      roleIdMap[r.name] = r.id;
-      if (r.icon) {
-        roleIcons[r.name] = `https://cdn.discordapp.com/role-icons/${r.id}/${r.icon}.png?size=128`;
-      }
-    });
-
-    // ----- All guild members (paginated) -----
-    let allMembers = [];
-    let after = '0';
-    while (true) {
-      const r = await fetch(
-        `https://discord.com/api/guilds/${GUILD_ID}/members?limit=1000&after=${after}`,
-        { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
-      );
-      if (!r.ok) break;
-      const m = await r.json();
-      if (!m.length) break;
-      allMembers = allMembers.concat(m);
-      if (m.length < 1000) break;
-      after = m[m.length - 1].user.id;
-    }
+    // ----- Discord data (cached at module level, see getDiscordData) -----
+    const { roleIdMap, roleIcons, allMembers } = await getDiscordData();
 
     // ----- Map members to their agency roles (within owner's subtree) -----
     const visibleRoles = Array.from(ownerSubtree);
@@ -274,11 +311,14 @@ export default async function handler(req, res) {
       return out;
     }
 
-    // Pull period deals for the FULL node subtree so the breakdown reflects
-    // every bucket, even when the user has toggled Direct view.
-    const periodDeals = await fetchDeals(scopeAllIds, startDate, endDate);
-    // Heatmap respects the active view (direct toggle).
-    const heatmapDeals = await fetchDeals(scopeIds, heatmapStart, null);
+    // Both queries run in parallel — they're independent and each can take
+    // a couple seconds when there are thousands of deals to paginate.
+    const [periodDeals, heatmapDeals] = await Promise.all([
+      // Period deals across the FULL node subtree (drives breakdown rollups).
+      fetchDeals(scopeAllIds, startDate, endDate),
+      // Heatmap deals, year-scoped, respecting the direct-view filter.
+      fetchDeals(scopeIds, heatmapStart, null),
+    ]);
 
     // ----- Leaderboard for the active view -----
     const scopeSet = new Set(scopeIds);
