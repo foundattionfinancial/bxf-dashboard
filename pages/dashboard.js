@@ -468,7 +468,6 @@ export default function Dashboard() {
 }
 
 function DealTicker({ deals }) {
-  const fmtT = n => '$' + Math.round(n).toLocaleString();
   const fmtAgo = iso => {
     const diff = Date.now() - new Date(iso).getTime();
     const m = Math.floor(diff / 60000);
@@ -497,7 +496,7 @@ function DealTicker({ deals }) {
                 {d.agency}
               </span>
             )}
-            <span className="ticker-amount">{fmtT(parseFloat(d.amount))}</span>
+            <span className="ticker-amount">{fmt(parseFloat(d.amount))}</span>
             <span className="ticker-time">{fmtAgo(d.posted_at)}</span>
           </div>
         ))}
