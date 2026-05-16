@@ -131,11 +131,12 @@ export default function Dashboard() {
   const ownerRole = user && (user.roles||[]).find(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerSelf = ownerRole ? OWNER_SELF[ownerRole] : null;
 
+  // Unified logo resolver. Same lookup logic as the ticker — exact match,
+  // case-insensitive match, then alias fallback. The merged source means
+  // agency-tab fresh icons take precedence over the standalone fetch.
   const iconUrl = (roleName) => {
-    if (!roleName) return null;
-    return (agencyData?.role_icons && agencyData.role_icons[roleName])
-      || roleIcons[roleName]
-      || null;
+    const merged = Object.assign({}, roleIcons, agencyData?.role_icons || {});
+    return lookupAgencyIcon(roleName, merged);
   };
 
   // Drill / navigate helpers
@@ -293,9 +294,9 @@ export default function Dashboard() {
         .hm-day-lbl{text-align:center;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.5);padding-bottom:4px}
         .hm-week{display:flex;align-items:center;gap:8px;margin-bottom:3px}
         .hm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;flex:1}
-        .hm-cell{height:46px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer}
-        .hm-cell-num{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1}
-        .hm-cell-amt{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:#93c5fd;line-height:1}
+        .hm-cell{height:54px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
+        .hm-cell-num{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;line-height:1}
+        .hm-cell-amt{font-family:'DM Mono',monospace;font-size:13px;font-weight:800;color:#ffffff;line-height:1;letter-spacing:.3px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
         .hm-week-total{width:64px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:#fff;font-weight:600;cursor:pointer}
         .hm-stats{display:flex;gap:32px;padding-top:14px;border-top:1px solid rgba(255,255,255,.04)}
         .hm-stat-label{font-size:10px;color:#fff;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;opacity:.7}
@@ -386,9 +387,9 @@ export default function Dashboard() {
           .stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}
           .content{padding:14px}.header{padding:0 14px}.brand-name{display:none}
           .period-nav-label{min-width:120px;font-size:10px}.agency-header-logo{width:48px;height:48px}
-          .hm-cell{height:38px}
-          .hm-cell-num{font-size:11px}
-          .hm-cell-amt{font-size:8px}
+          .hm-cell{height:44px}
+          .hm-cell-num{font-size:12px}
+          .hm-cell-amt{font-size:11px}
           .hm-week-total{width:54px;font-size:10px}
         }
         /* ---------- Ticker ---------- */
@@ -397,15 +398,27 @@ export default function Dashboard() {
         .ticker-track:hover{animation-play-state:paused}
         @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
         .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:38px;transition:background .3s}
-        .ticker-name{color:rgba(255,255,255,0.78);font-weight:500}
-        .ticker-amount{color:#60a5fa;font-weight:700;transition:text-shadow .3s,color .3s}
-        .ticker-time{color:rgba(255,255,255,0.35);font-size:10px}
+        .ticker-name{color:rgba(255,255,255,0.85);font-weight:500}
+        /* Gradient blue text effect — applied to ALL ticker amounts, not just recent. */
+        .ticker-amount{
+          font-weight:800;font-size:12px;letter-spacing:.3px;
+          background:linear-gradient(135deg,#3b82f6 0%,#60a5fa 35%,#93c5fd 65%,#60a5fa 100%);
+          -webkit-background-clip:text;background-clip:text;
+          -webkit-text-fill-color:transparent;color:transparent;
+          filter:drop-shadow(0 0 1px rgba(96,165,250,.35));
+        }
+        .ticker-time{color:#ffffff;font-size:11px;font-weight:600;letter-spacing:.2px}
         .ticker-dot{width:6px;height:6px;border-radius:50%;background:#60a5fa;opacity:0.45;flex-shrink:0;transition:all .3s}
         .ticker-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.06)}
         .ticker-agency-logo{width:18px;height:18px;border-radius:5px;object-fit:contain;flex-shrink:0;background:rgba(255,255,255,.06);padding:1px}
         .ticker-agency-text{font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:1px 5px;letter-spacing:.5px;text-transform:uppercase}
-        .ticker-item.recent{background:radial-gradient(ellipse at center,rgba(96,165,250,0.10) 0%,transparent 75%)}
-        .ticker-item.recent .ticker-amount{color:#93c5fd;text-shadow:0 0 10px rgba(96,165,250,.7)}
+        .ticker-item.recent{background:radial-gradient(ellipse at center,rgba(96,165,250,0.12) 0%,transparent 75%)}
+        /* Recent: intensify the gradient and add an external glow. */
+        .ticker-item.recent .ticker-amount{
+          background:linear-gradient(135deg,#60a5fa 0%,#93c5fd 50%,#dbeafe 100%);
+          -webkit-background-clip:text;background-clip:text;
+          filter:drop-shadow(0 0 8px rgba(147,197,253,.7));
+        }
         .ticker-item.recent .ticker-name{color:#fff}
         .ticker-item.recent .ticker-dot{background:#60a5fa;opacity:1;animation:pulse-dot 1.8s ease-in-out infinite}
         .ticker-item.recent .ticker-avatar{border-color:rgba(96,165,250,.55);box-shadow:0 0 10px rgba(96,165,250,.45)}
@@ -683,6 +696,64 @@ function timeAgo(iso) {
   return 'just now';
 }
 
+// Resolve an agency string (whatever /api/ticker emits) to a role-icon URL.
+// /api/ticker may use any casing/formatting for the agency name; we fall back
+// through exact match → case-insensitive trimmed match → known aliases.
+// All the ways /api/ticker (or any other source) might spell an agency.
+// Keys are lowercased+trimmed; values are the canonical role names that
+// /api/role-icons returns. Order doesn't matter.
+const AGENCY_ALIAS = {
+  // AA Financial — many possible spellings
+  'aa':                          'AA FINANCIAL',
+  'aa financial':                'AA FINANCIAL',
+  'aafinancial':                 'AA FINANCIAL',
+  'aa_financial':                'AA FINANCIAL',
+  'aa-financial':                'AA FINANCIAL',
+  'agency owner- aa financial':  'AA FINANCIAL',
+  'agency owner-aa financial':   'AA FINANCIAL',
+  'agency owner- aa':            'AA FINANCIAL',
+  // Formula Financial
+  'formula':                          'FORMULA FINANCIAL',
+  'formula financial':                'FORMULA FINANCIAL',
+  'formulafinancial':                 'FORMULA FINANCIAL',
+  'agency owner- formula financial':  'FORMULA FINANCIAL',
+  'agency owner- formula':            'FORMULA FINANCIAL',
+  // The Key Agency
+  'key':                       'THE KEY AGENCY',
+  'the key':                   'THE KEY AGENCY',
+  'key agency':                'THE KEY AGENCY',
+  'the key agency':            'THE KEY AGENCY',
+  'agency owner- the key':     'THE KEY AGENCY',
+  'agency owner- key':         'THE KEY AGENCY',
+  // The Foundation
+  'foundation':                       'The Foundation',
+  'the foundation':                   'The Foundation',
+  'agency owner- the foundation':     'The Foundation',
+  'agency owner- foundation':         'The Foundation',
+  // Stark Financial
+  'stark':                            'Stark Financial',
+  'stark financial':                  'Stark Financial',
+  'agency owner- stark financial':    'Stark Financial',
+  'agency owner- stark':              'Stark Financial',
+  // Blueprint
+  'blueprint':                        'Blueprint Agency',
+  'blueprint agency':                 'Blueprint Agency',
+  'agency owner- blueprint':          'Blueprint Agency',
+};
+function lookupAgencyIcon(agencyStr, iconsMap) {
+  if (!agencyStr || !iconsMap) return null;
+  // 1. Exact key match (fastest path — when role names are canonical).
+  if (iconsMap[agencyStr]) return iconsMap[agencyStr];
+  // 2. Case-insensitive trimmed match against any key in the icons map.
+  const norm = String(agencyStr).toLowerCase().trim();
+  for (const k of Object.keys(iconsMap)) {
+    if (k.toLowerCase().trim() === norm) return iconsMap[k];
+  }
+  // 3. Aliases — short forms, owner-role prefixes, common typos.
+  const canonical = AGENCY_ALIAS[norm];
+  return canonical ? iconsMap[canonical] : null;
+}
+
 function DealTicker({ deals, roleIcons }) {
   const items = [...deals, ...deals];
   const speed = Math.max(deals.length * 7, 90);
@@ -693,7 +764,7 @@ function DealTicker({ deals, roleIcons }) {
         {items.map((deal, i) => {
           const ageMs = now - new Date(deal.posted_at).getTime();
           const isRecent = ageMs >= 0 && ageMs < 3600 * 1000;
-          const agencyIconSrc = deal.agency && roleIcons ? roleIcons[deal.agency] : null;
+          const agencyIconSrc = lookupAgencyIcon(deal.agency, roleIcons);
           const avatar = deal.avatar || deal.display_avatar || null;
           return (
             <div key={i} className={`ticker-item ${isRecent ? 'recent' : ''}`}>
