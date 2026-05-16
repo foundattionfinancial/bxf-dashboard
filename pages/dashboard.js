@@ -152,8 +152,10 @@ export default function Dashboard() {
     }).catch(()=>{});
   }, []);
 
+  // Ticker fires for everyone. /api/ticker scopes the data server-side:
+  // owners see their subtree, non-owners see the full Blueprint view.
   useEffect(() => {
-    if (!isOwner) return;
+    if (!user) return;
     const fetchTicker = () => {
       fetch('/api/ticker').then(r => r.json()).then(d => {
         if (Array.isArray(d)) setTickerDeals(d);
@@ -162,7 +164,7 @@ export default function Dashboard() {
     fetchTicker();
     const interval = setInterval(fetchTicker, 30000);
     return () => clearInterval(interval);
-  }, [isOwner]);
+  }, [user]);
 
   useEffect(() => {
     fetch('/api/me').then(r => { if (!r.ok) { router.push('/'); return null; } return r.json(); })
@@ -451,7 +453,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {isOwner && tickerDeals.length > 0 && <DealTicker deals={tickerDeals} roleIcons={{...roleIcons, ...(agencyData?.role_icons||{})}} />}
+      {tickerDeals.length > 0 && <DealTicker deals={tickerDeals} roleIcons={{...roleIcons, ...(agencyData?.role_icons||{})}} />}
 
       {tab==='personal' && (
         <div className="content">
