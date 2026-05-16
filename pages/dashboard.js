@@ -2,32 +2,17 @@ import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 
-// ============================================================================
-// LOGOS
-// Paste your existing base64 strings into the placeholders below. The keys
-// are now the canonical agency *role names* (matching what /api/agency
-// returns) — this makes the same map usable for the page header, the
-// breakdown cards, AND the ticker.
-// ============================================================================
-
-const BLUEPRINT_LOGO = "/* PASTE BLUEPRINT BASE64 HERE - JPEG */";
-const FAVICON         = "/* PASTE FAVICON BASE64 HERE - PNG */";
-
-// AGENCY_LOGOS keyed by canonical role name.
-//   src  - base64 image data (without the data:... prefix)
-//   mime - 'jpeg' or 'png' (matches your existing data)
-//   name - display name
-const AGENCY_LOGOS = {
-  'Blueprint Agency':  { src: BLUEPRINT_LOGO,                              mime: 'jpeg', name: 'Blueprint Agency' },
-  'The Foundation':    { src: "/* PASTE FOUNDATION BASE64 HERE */",        mime: 'png',  name: 'The Foundation' },
-  'THE KEY AGENCY':    { src: "/* PASTE KEY BASE64 HERE */",               mime: 'png',  name: 'The Key Agency' },
-  'AA FINANCIAL':      { src: "/* PASTE AA FINANCIAL BASE64 HERE */",      mime: 'png',  name: 'AA Financial' },
-  'FORMULA FINANCIAL': { src: "/* PASTE FORMULA FINANCIAL BASE64 HERE */", mime: 'png',  name: 'Formula Financial' },
-  'Stark Financial':   { src: "/* PASTE STARK BASE64 HERE */",             mime: 'png',  name: 'Stark Financial' },
+// Org tree (mirrors agency.js — keep these in sync).
+const AGENCY_TREE = {
+  'Blueprint Agency':  { parent: null,                children: ['The Foundation'],                    label: 'Blueprint Agency' },
+  'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial'], label: 'The Foundation' },
+  'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'], label: 'The Key Agency' },
+  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                    label: 'AA Financial' },
+  'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                    label: 'Formula Financial' },
+  'Stark Financial':   { parent: 'The Foundation',   children: [],                                    label: 'Stark Financial' },
 };
 
-// Owner role -> the agency they own. Used for the page header / favicon.
-const OWNER_TO_AGENCY = {
+const OWNER_SELF = {
   'Agency Owner- Blueprint':         'Blueprint Agency',
   'Agency Owner- The Foundation':    'The Foundation',
   'Agency Owner- The Key':           'THE KEY AGENCY',
@@ -35,17 +20,7 @@ const OWNER_TO_AGENCY = {
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
   'Agency Owner- Stark Financial':   'Stark Financial',
 };
-
-const AGENCY_OWNER_ROLES = Object.keys(OWNER_TO_AGENCY);
-
-const DIRECT = '__direct__';
-
-function logoSrc(logo) {
-  if (!logo || !logo.src || logo.src.startsWith('/*')) return null;
-  return `data:image/${logo.mime || 'png'};base64,${logo.src}`;
-}
-
-// ============================================================================
+const AGENCY_OWNER_ROLES = Object.keys(OWNER_SELF);
 
 const MONTHS_LONG  = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -65,61 +40,43 @@ function getBadgeClass(r) {
 }
 
 const fmt = n => '$' + Math.round(n).toLocaleString();
+const fmtCompact = n => {
+  // Compact $ amounts for heatmap cells: $8,367 -> "8.4k", $1,200,000 -> "1.2M"
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1) + 'k';
+  return Math.round(n).toString();
+};
 const fmtDate = iso => new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
 const fmtMonth = iso => new Date(iso).toLocaleDateString('en-US', { month:'long', year:'numeric' });
 
 function getEasternNow() {
-  const now = new Date();
-  return new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
 }
-
 function ymdLocal(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
-
 function getPeriodRange(period, offset) {
   const now = getEasternNow();
-
   if (period === 'today') {
-    const d = new Date(now);
-    d.setDate(d.getDate() + offset);
+    const d = new Date(now); d.setDate(d.getDate() + offset);
     const ymd = ymdLocal(d);
-    return {
-      start: ymd,
-      end: ymd,
-      label: `${DAYS_SHORT[d.getDay()]}, ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}`,
-    };
+    return { start: ymd, end: ymd, label: `${DAYS_SHORT[d.getDay()]}, ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}` };
   }
-
   if (period === 'week') {
-    const d = new Date(now);
-    d.setDate(d.getDate() + offset * 7);
-    const dow = d.getDay();
-    const start = new Date(d);
-    start.setDate(start.getDate() - dow);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
-    return {
-      start: ymdLocal(start),
-      end: ymdLocal(end),
-      label: `Week of ${MONTHS_SHORT[start.getMonth()]} ${start.getDate()}`,
-    };
+    const d = new Date(now); d.setDate(d.getDate() + offset * 7);
+    const start = new Date(d); start.setDate(start.getDate() - d.getDay());
+    const end = new Date(start); end.setDate(end.getDate() + 6);
+    return { start: ymdLocal(start), end: ymdLocal(end), label: `Week of ${MONTHS_SHORT[start.getMonth()]} ${start.getDate()}` };
   }
-
   if (period === 'month') {
     const cur = new Date(now);
     const d = new Date(cur.getFullYear(), cur.getMonth() + offset, 1);
     const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-    return {
-      start: ymdLocal(d),
-      end: ymdLocal(lastDay),
-      label: `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`,
-    };
+    return { start: ymdLocal(d), end: ymdLocal(lastDay), label: `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}` };
   }
-
   return { start: null, end: null, label: '' };
 }
 
@@ -156,20 +113,43 @@ export default function Dashboard() {
   const [lbPeriod, setLbPeriod] = useState('month');
   const [agencyData, setAgencyData] = useState(null);
   const [agencyPeriod, setAgencyPeriod] = useState('month');
-  const [agencyFilter, setAgencyFilter] = useState('');
   const [agencyLoading, setAgencyLoading] = useState(false);
   const [agencyCustomStart, setAgencyCustomStart] = useState('');
   const [agencyCustomEnd, setAgencyCustomEnd] = useState('');
   const [agencyDateOffset, setAgencyDateOffset] = useState(0);
+  // NEW: tree navigation state.
+  //   agencyNode = the role we're viewing ('' = owner's self)
+  //   agencyDirect = filter to direct members only
+  const [agencyNode, setAgencyNode] = useState('');
+  const [agencyDirect, setAgencyDirect] = useState(false);
   const [tooltip, setTooltip] = useState(null);
   const [showAllDeals, setShowAllDeals] = useState(false);
   const [tickerDeals, setTickerDeals] = useState([]);
+  const [roleIcons, setRoleIcons] = useState({});
 
-  // Declared before any useEffect that references them (avoids TDZ bug).
   const isOwner = user && (user.roles||[]).some(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerRole = user && (user.roles||[]).find(r => AGENCY_OWNER_ROLES.includes(r));
-  const ownerAgencyKey = ownerRole ? OWNER_TO_AGENCY[ownerRole] : null;
-  const ownerLogo = ownerAgencyKey ? AGENCY_LOGOS[ownerAgencyKey] : null;
+  const ownerSelf = ownerRole ? OWNER_SELF[ownerRole] : null;
+
+  const iconUrl = (roleName) => {
+    if (!roleName) return null;
+    return (agencyData?.role_icons && agencyData.role_icons[roleName])
+      || roleIcons[roleName]
+      || null;
+  };
+
+  // Drill / navigate helpers
+  const drillTo = (roleName) => {
+    setAgencyNode(roleName || '');
+    setAgencyDirect(false);
+  };
+  const toggleDirect = () => setAgencyDirect(v => !v);
+
+  useEffect(() => {
+    fetch('/api/role-icons').then(r => r.ok ? r.json() : {}).then(d => {
+      if (d && typeof d === 'object') setRoleIcons(d);
+    }).catch(()=>{});
+  }, []);
 
   useEffect(() => {
     if (!isOwner) return;
@@ -195,13 +175,17 @@ export default function Dashboard() {
 
   useEffect(() => { setAgencyDateOffset(0); }, [agencyPeriod]);
 
+  // Reset direct flag when navigating to a new node (it's per-node UX state).
+  useEffect(() => { setAgencyDirect(false); }, [agencyNode]);
+
   useEffect(() => {
     if (tab !== 'agency' || !isOwner) return;
     if (agencyPeriod === 'custom' && (!agencyCustomStart || !agencyCustomEnd)) return;
     setAgencyLoading(true);
 
     const params = new URLSearchParams({ period: agencyPeriod });
-    if (agencyFilter) params.set('agency', agencyFilter);
+    if (agencyNode) params.set('node', agencyNode);
+    if (agencyDirect) params.set('direct', 'true');
 
     if (agencyPeriod === 'custom') {
       params.set('start', agencyCustomStart);
@@ -214,14 +198,14 @@ export default function Dashboard() {
 
     fetch('/api/agency?' + params).then(r => r.json()).then(d => { setAgencyData(d); setAgencyLoading(false); })
       .catch(() => setAgencyLoading(false));
-  }, [tab, agencyPeriod, agencyFilter, agencyCustomStart, agencyCustomEnd, agencyDateOffset, isOwner]);
+  }, [tab, agencyPeriod, agencyNode, agencyDirect, agencyCustomStart, agencyCustomEnd, agencyDateOffset, isOwner]);
 
+  // ----- Personal tab computed -----
   const filtered = filterDeals(deals, period);
   const total = filtered.reduce((s,d) => s + parseFloat(d.amount), 0);
   const count = filtered.length;
   const avg = count ? total/count : 0;
   const myRank = leaderboard.find(u => u.discord_id === user?.discord_id)?.rank;
-
   const dailyMap = {};
   deals.forEach(d => {
     const day = d.posted_at.slice(0,10);
@@ -235,44 +219,22 @@ export default function Dashboard() {
   const dealsToShow = showAllDeals ? deals : deals.slice(0,30);
   const groupedDeals = groupByMonth(dealsToShow);
 
-  // ----- Agency tab computed values -----
-  const summaries = agencyData?.agency_summaries || [];
-  const hasBreakdown = summaries.length > 1; // single-agency owners get no breakdown
-
-  // Title resolution:
-  //   - filter active -> the filtered sub-agency's label (incl. Direct)
-  //   - no filter     -> the OWNER'S own agency name (e.g. "The Foundation")
-  const agencyTitle = (() => {
-    if (agencyFilter) {
-      const found = summaries.find(a => a.role === agencyFilter);
-      if (found) return found.label;
-    }
-    return (ownerLogo && ownerLogo.name) || agencyData?.self_label || 'Agency Overview';
-  })();
-
+  // ----- Agency tab computed -----
+  const currentNode = agencyData?.node || agencyNode || ownerSelf;
+  const nodeLabel = agencyData?.node_label || (currentNode && AGENCY_TREE[currentNode]?.label) || 'Agency';
+  const breakdown = agencyData?.breakdown || [];
+  const breadcrumb = agencyData?.breadcrumb || [];
+  const hasChildren = agencyData?.has_children ?? (currentNode && AGENCY_TREE[currentNode]?.children?.length > 0);
   const agencyPeriodLabel = ['today','week','month'].includes(agencyPeriod)
     ? getPeriodRange(agencyPeriod, agencyDateOffset).label
     : null;
   const agencyDailyMap = agencyData?.daily_map || {};
   const agencyMaxDay = Object.values(agencyDailyMap).reduce((m,v) => v>m?v:m, 1);
-
-  // Logo to display in the agency page header — switches with the filter so
-  // drilling into "AA Financial" shows AA's logo, not the owner's.
-  const headerLogoKey = (() => {
-    if (agencyFilter && agencyFilter !== DIRECT) {
-      const found = summaries.find(a => a.role === agencyFilter);
-      if (found) return found.role;
-    }
-    if (agencyFilter === DIRECT) {
-      return agencyData?.self_role || ownerAgencyKey;
-    }
-    return ownerAgencyKey;
-  })();
-  const headerLogo = headerLogoKey ? AGENCY_LOGOS[headerLogoKey] : null;
+  const headerLogoSrc = iconUrl(currentNode);
+  const brandLogoSrc = iconUrl('Blueprint Agency');
+  const headerTitle = agencyDirect ? `${nodeLabel} (Direct)` : nodeLabel;
 
   if (!user) return null;
-
-  const faviconSrc = logoSrc({ src: FAVICON, mime: 'png' });
 
   return (
     <>
@@ -280,7 +242,7 @@ export default function Dashboard() {
         <title>Blueprint Agency Sales</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
-        {faviconSrc && <link rel="icon" type="image/png" href={faviconSrc} />}
+        {brandLogoSrc && <link rel="icon" type="image/png" href={brandLogoSrc} />}
       </Head>
       <style>{`
         *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
@@ -321,19 +283,20 @@ export default function Dashboard() {
         .bar{width:100%;background:rgba(37,99,235,.2);border-radius:3px 3px 0 0;min-height:2px;transition:background .2s}
         .bar-wrap:hover .bar{background:rgba(96,165,250,.5)}
         .bar-lbl{font-size:8px;color:rgba(255,255,255,.6);font-family:'DM Mono',monospace;white-space:nowrap}
+        /* ---------- Heatmap (LARGER cells/text — was 30px/9px/6px) ---------- */
         .hm-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-        .hm-nav-btn{background:none;border:none;font-size:20px;cursor:pointer;padding:0 4px;line-height:1;width:28px}
+        .hm-nav-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:0 4px;line-height:1;width:32px}
         .hm-nav-center{text-align:center}
-        .hm-nav-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fff}
-        .hm-nav-total{font-family:'DM Mono',monospace;font-size:18px;color:#60a5fa;font-weight:700;margin-top:2px}
-        .hm-day-header{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
-        .hm-day-lbl{text-align:center;font-family:'DM Mono',monospace;font-size:9px;color:rgba(255,255,255,.5);padding-bottom:4px}
-        .hm-week{display:flex;align-items:center;gap:6px;margin-bottom:2px}
-        .hm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;flex:1}
-        .hm-cell{height:30px;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer}
-        .hm-cell-num{font-family:'DM Mono',monospace;font-size:9px}
-        .hm-cell-amt{font-family:'DM Mono',monospace;font-size:6px;color:#93c5fd}
-        .hm-week-total{width:56px;text-align:right;font-family:'DM Mono',monospace;font-size:10px;color:#fff;font-weight:600;cursor:pointer}
+        .hm-nav-label{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#fff}
+        .hm-nav-total{font-family:'DM Mono',monospace;font-size:20px;color:#60a5fa;font-weight:700;margin-top:2px}
+        .hm-day-header{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:6px}
+        .hm-day-lbl{text-align:center;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.5);padding-bottom:4px}
+        .hm-week{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+        .hm-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;flex:1}
+        .hm-cell{height:46px;border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer}
+        .hm-cell-num{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;line-height:1}
+        .hm-cell-amt{font-family:'DM Mono',monospace;font-size:10px;font-weight:600;color:#93c5fd;line-height:1}
+        .hm-week-total{width:64px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:#fff;font-weight:600;cursor:pointer}
         .hm-stats{display:flex;gap:32px;padding-top:14px;border-top:1px solid rgba(255,255,255,.04)}
         .hm-stat-label{font-size:10px;color:#fff;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;opacity:.7}
         .hm-stat-value{font-family:'DM Mono',monospace;font-size:20px;color:#fff}
@@ -371,32 +334,45 @@ export default function Dashboard() {
         .you-badge{font-size:9px;font-weight:700;background:rgba(37,99,235,.12);color:#60a5fa;border:1px solid rgba(37,99,235,.25);padding:1px 6px;border-radius:3px;margin-left:8px;letter-spacing:.5px}
         .lb-deals{font-size:11px;color:rgba(255,255,255,.7);margin-right:12px;font-family:'DM Mono',monospace}
         .lb-total{font-family:'DM Mono',monospace;font-size:13px;color:#fff;font-weight:500}
-        .agency-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+        .agency-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px}
         .agency-role-badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:4px;letter-spacing:1px;text-transform:uppercase;margin-top:6px;display:inline-block}
+        .agency-direct-chip{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.35);color:#93c5fd;padding:3px 10px;border-radius:4px;letter-spacing:1px;text-transform:uppercase;margin-top:6px;margin-left:6px;cursor:pointer}
+        .agency-direct-chip:hover{background:rgba(96,165,250,.2)}
+        .agency-direct-chip .x{font-size:14px;opacity:.7}
         .badge-silver{background:rgba(192,192,192,.08);color:#d4d4d4;border:1px solid rgba(192,192,192,.25)}
         .badge-gold{background:rgba(245,158,11,.08);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
         .badge-red{background:rgba(239,68,68,.08);color:#f87171;border:1px solid rgba(239,68,68,.25)}
         .agency-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-        .agency-select{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:#fff;font-family:'DM Sans',sans-serif;font-size:12px;padding:6px 12px;cursor:pointer;outline:none}
-        .agency-select option{background:#0d1020}
         .agency-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .date-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .date-input{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:#fff;font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;outline:none;colorscheme:dark}
-        .breakdown-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:14px}
-        .breakdown-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:6px}
-        .breakdown-card:hover{border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.03)}
+        /* ---------- Breakdown ---------- */
+        .breakdown-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px}
+        .breakdown-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:6px;position:relative}
+        .breakdown-card:hover{border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.03);transform:translateY(-1px)}
         .breakdown-head{display:flex;align-items:center;gap:10px}
-        .breakdown-logo{width:28px;height:28px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,.06);padding:2px;flex-shrink:0}
-        .breakdown-logo-placeholder{width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,.4);flex-shrink:0}
-        .breakdown-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;line-height:1.2}
+        .breakdown-logo{width:32px;height:32px;border-radius:7px;object-fit:contain;background:rgba(255,255,255,.06);padding:3px;flex-shrink:0}
+        .breakdown-logo-placeholder{width:32px;height:32px;border-radius:7px;background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:13px;color:rgba(255,255,255,.4);flex-shrink:0;font-weight:700}
+        .breakdown-label{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;line-height:1.2}
         .breakdown-value{font-family:'DM Mono',monospace;font-size:22px;color:#60a5fa;margin-top:4px}
         .breakdown-sub{font-size:11px;color:rgba(255,255,255,.65);font-family:'DM Mono',monospace}
-        .breakdown-card.direct{border-color:rgba(96,165,250,.18);background:linear-gradient(135deg,rgba(37,99,235,.05),rgba(255,255,255,.02))}
-        .breakdown-card.direct:hover{border-color:rgba(96,165,250,.4)}
+        .breakdown-card.direct{border-color:rgba(96,165,250,.22);background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(255,255,255,.02))}
+        .breakdown-card.direct:hover{border-color:rgba(96,165,250,.5)}
         .breakdown-card.direct .breakdown-label{color:#93c5fd}
+        .breakdown-card.direct.active{border-color:#60a5fa;box-shadow:0 0 0 1px rgba(96,165,250,.5),0 4px 16px rgba(37,99,235,.2)}
+        .breakdown-sub-badge{position:absolute;top:10px;right:12px;display:inline-flex;align-items:center;gap:4px;font-size:9px;font-family:'DM Mono',monospace;color:rgba(96,165,250,.85);background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);padding:2px 6px;border-radius:4px;letter-spacing:.5px;font-weight:700;text-transform:uppercase}
+        .breakdown-sub-badge .arrow{font-size:10px;line-height:1}
         .agency-header-logo{width:64px;height:64px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center}
         .agency-header-logo img{width:100%;height:100%;object-fit:contain;padding:4px}
         .agency-header-logo-placeholder{font-family:'Playfair Display',serif;font-size:24px;font-style:italic;color:rgba(255,255,255,.4)}
+        /* Breadcrumb */
+        .breadcrumb{display:flex;align-items:center;gap:8px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;flex-wrap:wrap}
+        .breadcrumb-item{color:rgba(255,255,255,.55);cursor:pointer;transition:color .15s;padding:4px 8px;border-radius:5px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04)}
+        .breadcrumb-item:hover{color:#fff;background:rgba(255,255,255,.04)}
+        .breadcrumb-item.current{color:#60a5fa;background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);cursor:default;font-weight:700}
+        .breadcrumb-item.current:hover{background:rgba(37,99,235,.1)}
+        .breadcrumb-sep{color:rgba(255,255,255,.25);font-size:13px}
+        /* Period nav */
         .period-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:14px;padding:12px 18px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
         .period-nav-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;line-height:1;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0}
         .period-nav-btn:hover:not(:disabled){background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25)}
@@ -406,25 +382,33 @@ export default function Dashboard() {
         .tooltip{position:fixed;background:#0d1020;border:1px solid rgba(37,99,235,.3);border-radius:8px;padding:8px 12px;font-size:11px;font-family:'DM Mono',monospace;color:#fff;pointer-events:none;z-index:9999;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.6)}
         .tooltip-date{color:rgba(255,255,255,.6);font-size:10px;margin-bottom:3px}
         .tooltip-amount{color:#60a5fa;font-weight:500}
-        @media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}.content{padding:14px}.header{padding:0 14px}.brand-name{display:none}.period-nav-label{min-width:120px;font-size:10px}.agency-header-logo{width:48px;height:48px}}
+        @media(max-width:768px){
+          .stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}
+          .content{padding:14px}.header{padding:0 14px}.brand-name{display:none}
+          .period-nav-label{min-width:120px;font-size:10px}.agency-header-logo{width:48px;height:48px}
+          .hm-cell{height:38px}
+          .hm-cell-num{font-size:11px}
+          .hm-cell-amt{font-size:8px}
+          .hm-week-total{width:54px;font-size:10px}
+        }
         /* ---------- Ticker ---------- */
-        .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:36px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
+        .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:38px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
         .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll linear infinite}
         .ticker-track:hover{animation-play-state:paused}
         @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-        .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:36px;transition:background .3s}
+        .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:38px;transition:background .3s}
         .ticker-name{color:rgba(255,255,255,0.78);font-weight:500}
         .ticker-amount{color:#60a5fa;font-weight:700;transition:text-shadow .3s,color .3s}
         .ticker-time{color:rgba(255,255,255,0.35);font-size:10px}
         .ticker-dot{width:6px;height:6px;border-radius:50%;background:#60a5fa;opacity:0.45;flex-shrink:0;transition:all .3s}
-        .ticker-logo{width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+        .ticker-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.06)}
+        .ticker-agency-logo{width:18px;height:18px;border-radius:5px;object-fit:contain;flex-shrink:0;background:rgba(255,255,255,.06);padding:1px}
         .ticker-agency-text{font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:1px 5px;letter-spacing:.5px;text-transform:uppercase}
-        /* Recent-sale glow (deals in the last hour) */
         .ticker-item.recent{background:radial-gradient(ellipse at center,rgba(96,165,250,0.10) 0%,transparent 75%)}
         .ticker-item.recent .ticker-amount{color:#93c5fd;text-shadow:0 0 10px rgba(96,165,250,.7)}
         .ticker-item.recent .ticker-name{color:#fff}
         .ticker-item.recent .ticker-dot{background:#60a5fa;opacity:1;animation:pulse-dot 1.8s ease-in-out infinite}
-        .ticker-item.recent .ticker-logo{border-color:rgba(96,165,250,.5);box-shadow:0 0 8px rgba(96,165,250,.4)}
+        .ticker-item.recent .ticker-avatar{border-color:rgba(96,165,250,.55);box-shadow:0 0 10px rgba(96,165,250,.45)}
         @keyframes pulse-dot{0%,100%{box-shadow:0 0 4px rgba(96,165,250,.6);opacity:1}50%{box-shadow:0 0 14px rgba(96,165,250,.95);opacity:.7}}
       `}</style>
 
@@ -437,11 +421,7 @@ export default function Dashboard() {
 
       <header className="header">
         <div className="brand">
-          <div className="brand-logo">
-            {logoSrc(AGENCY_LOGOS['Blueprint Agency']) && (
-              <img src={logoSrc(AGENCY_LOGOS['Blueprint Agency'])} alt="Blueprint" />
-            )}
-          </div>
+          <div className="brand-logo">{brandLogoSrc && <img src={brandLogoSrc} alt="Blueprint" />}</div>
           <span className="brand-name">Blueprint Agency Sales</span>
         </div>
         <div className="nav-tabs">
@@ -458,7 +438,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {isOwner && tickerDeals.length > 0 && <DealTicker deals={tickerDeals} />}
+      {isOwner && tickerDeals.length > 0 && <DealTicker deals={tickerDeals} roleIcons={{...roleIcons, ...(agencyData?.role_icons||{})}} />}
 
       {tab==='personal' && (
         <div className="content">
@@ -552,32 +532,42 @@ export default function Dashboard() {
 
       {tab==='agency' && isOwner && (
         <div className="content">
+          {breadcrumb.length > 1 && (
+            <div className="breadcrumb">
+              {breadcrumb.map((b, i) => {
+                const isLast = i === breadcrumb.length - 1;
+                return (
+                  <React.Fragment key={b.role}>
+                    <span
+                      className={`breadcrumb-item ${isLast ? 'current' : ''}`}
+                      onClick={() => !isLast && drillTo(b.role === ownerSelf ? '' : b.role)}
+                    >{b.label}</span>
+                    {!isLast && <span className="breadcrumb-sep">›</span>}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          )}
+
           <div className="agency-header">
             <div style={{display:'flex',alignItems:'center',gap:16}}>
               <div className="agency-header-logo">
-                {logoSrc(headerLogo) ? (
-                  <img src={logoSrc(headerLogo)} alt=""/>
-                ) : (
-                  <span className="agency-header-logo-placeholder">
-                    {(agencyTitle || 'A')[0]}
-                  </span>
-                )}
+                {headerLogoSrc ? <img src={headerLogoSrc} alt=""/> :
+                  <span className="agency-header-logo-placeholder">{(nodeLabel || 'A')[0]}</span>}
               </div>
               <div>
-                {/* Title shows the OWNER's own agency name (e.g. "The Foundation")
-                    when no filter is active, or the drilled-into bucket label
-                    when a filter is set. No more "Foundation Network". */}
-                <div className="page-title">{agencyTitle}</div>
-                <div className={`agency-role-badge ${getBadgeClass(ownerRole)}`}>{ownerRole}</div>
+                <div className="page-title">{headerTitle}</div>
+                <div>
+                  <div className={`agency-role-badge ${getBadgeClass(ownerRole)}`} style={{display:'inline-block'}}>{ownerRole}</div>
+                  {agencyDirect && (
+                    <span className="agency-direct-chip" onClick={()=>setAgencyDirect(false)} title="Click to clear">
+                      DIRECT ONLY <span className="x">×</span>
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="agency-controls">
-              {hasBreakdown && (
-                <select className="agency-select" value={agencyFilter} onChange={e=>setAgencyFilter(e.target.value)}>
-                  <option value="">All Agencies</option>
-                  {summaries.map(a=><option key={a.role} value={a.role}>{a.label}</option>)}
-                </select>
-              )}
               <div className="pills">
                 {['today','week','month','year','all','custom'].map(p=>(
                   <button key={p} className={`pill ${agencyPeriod===p?'active':''}`} onClick={()=>setAgencyPeriod(p)}>
@@ -597,23 +587,12 @@ export default function Dashboard() {
 
           {['today','week','month'].includes(agencyPeriod) && agencyPeriodLabel && (
             <div className="period-nav">
-              <button
-                className="period-nav-btn"
-                onClick={() => setAgencyDateOffset(o => o - 1)}
-                aria-label="Previous period"
-                title="Previous period"
-              >‹</button>
+              <button className="period-nav-btn" onClick={() => setAgencyDateOffset(o => o - 1)} aria-label="Previous">‹</button>
               <div className="period-nav-label">
                 {agencyPeriodLabel}
                 {agencyDateOffset === 0 && <span className="period-nav-current">NOW</span>}
               </div>
-              <button
-                className="period-nav-btn"
-                onClick={() => agencyDateOffset < 0 && setAgencyDateOffset(o => o + 1)}
-                disabled={agencyDateOffset >= 0}
-                aria-label="Next period"
-                title="Next period"
-              >›</button>
+              <button className="period-nav-btn" onClick={() => agencyDateOffset < 0 && setAgencyDateOffset(o => o + 1)} disabled={agencyDateOffset >= 0} aria-label="Next">›</button>
             </div>
           )}
 
@@ -626,26 +605,36 @@ export default function Dashboard() {
                 <div className="stat-card"><div className="stat-label">Total Deals</div><div className="stat-value">{agencyData.summary?.total_deals||0}</div></div>
                 <div className="stat-card"><div className="stat-label">Active Agents</div><div className="stat-value">{agencyData.summary?.agent_count||0}</div></div>
               </div>
-              {!agencyFilter && hasBreakdown && (
+
+              {hasChildren && breakdown.length > 0 && (
                 <div className="card" style={{marginBottom:14}}>
                   <div className="card-header"><div className="card-title">Agency Breakdown</div></div>
                   <div className="breakdown-grid">
-                    {summaries.map(a=>{
-                      const logoKey = a.is_direct ? (a.self_role || ownerAgencyKey) : a.role;
-                      const logo = AGENCY_LOGOS[logoKey];
-                      const src = logoSrc(logo);
+                    {breakdown.map(a => {
+                      const logoSrc = a.is_direct ? iconUrl(a.node_role || currentNode) : iconUrl(a.role);
+                      const onClick = () => {
+                        if (a.is_direct) {
+                          toggleDirect();
+                        } else {
+                          drillTo(a.role);
+                        }
+                      };
+                      const activeClass = a.is_direct && agencyDirect ? 'active' : '';
                       return (
                         <div
                           key={a.role}
-                          className={`breakdown-card ${a.is_direct ? 'direct' : ''}`}
-                          onClick={()=>setAgencyFilter(a.role)}
+                          className={`breakdown-card ${a.is_direct ? 'direct' : ''} ${activeClass}`}
+                          onClick={onClick}
+                          title={a.is_direct ? 'Click to filter to direct members' : 'Click to drill into this agency'}
                         >
+                          {!a.is_direct && a.sub_count > 0 && (
+                            <div className="breakdown-sub-badge">
+                              {a.sub_count} SUB <span className="arrow">→</span>
+                            </div>
+                          )}
                           <div className="breakdown-head">
-                            {src ? (
-                              <img className="breakdown-logo" src={src} alt=""/>
-                            ) : (
-                              <div className="breakdown-logo-placeholder">{a.label[0]}</div>
-                            )}
+                            {logoSrc ? <img className="breakdown-logo" src={logoSrc} alt=""/> :
+                              <div className="breakdown-logo-placeholder">{a.label[0]}</div>}
                             <div className="breakdown-label">{a.label}</div>
                           </div>
                           <div className="breakdown-value">{fmt(a.total_production)}</div>
@@ -685,18 +674,16 @@ export default function Dashboard() {
 
 function timeAgo(iso) {
   const diff = Date.now() - new Date(iso).getTime();
-  const diffMins = Math.floor(diff / 60000);
-  const diffHrs = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHrs / 24);
-  if (diffDays > 0) return diffDays + 'd ago';
-  if (diffHrs > 0) return diffHrs + 'h ago';
-  if (diffMins > 0) return diffMins + 'm ago';
+  const m = Math.floor(diff / 60000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  if (d > 0) return d + 'd ago';
+  if (h > 0) return h + 'h ago';
+  if (m > 0) return m + 'm ago';
   return 'just now';
 }
 
-function DealTicker({ deals }) {
-  // Render the list twice for the seamless loop. Slow speed: ~7s per item,
-  // floored at 90s total so a short list isn't a blur.
+function DealTicker({ deals, roleIcons }) {
   const items = [...deals, ...deals];
   const speed = Math.max(deals.length * 7, 90);
   const now = Date.now();
@@ -705,14 +692,17 @@ function DealTicker({ deals }) {
       <div className="ticker-track" style={{animationDuration: `${speed}s`}}>
         {items.map((deal, i) => {
           const ageMs = now - new Date(deal.posted_at).getTime();
-          const isRecent = ageMs >= 0 && ageMs < 3600 * 1000; // last hour
-          const logo = deal.agency ? AGENCY_LOGOS[deal.agency] : null;
-          const src = logoSrc(logo);
+          const isRecent = ageMs >= 0 && ageMs < 3600 * 1000;
+          const agencyIconSrc = deal.agency && roleIcons ? roleIcons[deal.agency] : null;
+          const avatar = deal.avatar || deal.display_avatar || null;
           return (
             <div key={i} className={`ticker-item ${isRecent ? 'recent' : ''}`}>
               <div className="ticker-dot" />
-              {src ? (
-                <img className="ticker-logo" src={src} alt={deal.agency || ''} title={logo?.name || deal.agency || ''}/>
+              {avatar && (
+                <img className="ticker-avatar" src={avatar} alt="" onError={e=>{e.target.style.display='none';}}/>
+              )}
+              {agencyIconSrc ? (
+                <img className="ticker-agency-logo" src={agencyIconSrc} alt={deal.agency || ''} title={deal.agency || ''}/>
               ) : deal.agency ? (
                 <span className="ticker-agency-text">{deal.agency}</span>
               ) : null}
@@ -806,12 +796,12 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
                     onMouseMove={e=>setTooltip({x:e.clientX,y:e.clientY,date:dateStr,amount:cell.val>0?fmt(cell.val):'No sales',deals:0})}
                     onMouseLeave={()=>setTooltip(null)}>
                     <span className="hm-cell-num" style={{color:cell.val>0?'#fff':'rgba(255,255,255,.4)'}}>{cell.d}</span>
-                    {cell.val>0&&<span className="hm-cell-amt">{fmt(cell.val).replace('$','')}</span>}
+                    {cell.val>0&&<span className="hm-cell-amt">{fmtCompact(cell.val)}</span>}
                   </div>
                 );
               })}
             </div>
-            {wTotal>0?<div className="hm-week-total">{fmt(wTotal)}</div>:<div style={{width:56}}/>}
+            {wTotal>0?<div className="hm-week-total">{fmt(wTotal)}</div>:<div style={{width:64}}/>}
           </div>
         );
       })}
