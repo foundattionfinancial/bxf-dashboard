@@ -79,6 +79,19 @@ export default function Dashboard() {
   const [agencyCustomEnd, setAgencyCustomEnd] = useState('');
   const [tooltip, setTooltip] = useState(null);
   const [showAllDeals, setShowAllDeals] = useState(false);
+  const [tickerDeals, setTickerDeals] = useState([]);
+
+  useEffect(() => {
+    if (!isOwner) return;
+    const fetchTicker = () => {
+      fetch('/api/ticker').then(r => r.json()).then(d => {
+        if (Array.isArray(d)) setTickerDeals(d);
+      }).catch(()=>{});
+    };
+    fetchTicker();
+    const interval = setInterval(fetchTicker, 30000);
+    return () => clearInterval(interval);
+  }, [isOwner]);
 
   const isOwner = user && (user.roles||[]).some(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerRole = user && (user.roles||[]).find(r => AGENCY_OWNER_ROLES.includes(r));
@@ -244,6 +257,15 @@ export default function Dashboard() {
         .tooltip-date{color:rgba(255,255,255,.6);font-size:10px;margin-bottom:3px}
         .tooltip-amount{color:#60a5fa;font-weight:500}
         @media(max-width:768px){.stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}.content{padding:14px}.header{padding:0 14px}.brand-name{display:none}}
+        .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:32px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
+        .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll 60s linear infinite}
+        .ticker-track:hover{animation-play-state:paused}
+        @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+        .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 24px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06)}
+        .ticker-name{color:rgba(255,255,255,0.7);font-weight:500}
+        .ticker-amount{color:#60a5fa;font-weight:700}
+        .ticker-time{color:rgba(255,255,255,0.35);font-size:10px}
+        .ticker-dot{width:5px;height:5px;border-radius:50%;background:#60a5fa;opacity:0.5;flex-shrink:0}
       `}</style>
 
       {tooltip && (
@@ -271,6 +293,8 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+
+      {isOwner && tickerDeals.length > 0 && <DealTicker deals={tickerDeals} />}
 
       {tab==='personal' && (
         <div className="content">
@@ -440,6 +464,45 @@ export default function Dashboard() {
         </div>
       )}
     </>
+  );
+}
+
+function DealTicker({ deals }) {
+  const fmtT = n => '$' + Math.round(n).toLocaleString();
+  const fmtAgo = iso => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    const h = Math.floor(m / 60);
+    const d = Math.floor(h / 24);
+    if (d > 0) return d + 'd ago';
+    if (h > 0) return h + 'h ago';
+    if (m > 0) return m + 'm ago';
+    return 'just now';
+  };
+
+  const items = [...deals, ...deals];
+  const speed = Math.max(deals.length * 3.5, 30);
+
+  return (
+    <div className="ticker-wrap">
+      <div className="ticker-track" style={{animationDuration: `${speed}s`}}>
+        {items.map((d, i) => (
+          <div key={i} className="ticker-item">
+            <div className="ticker-dot" />
+            <span className="ticker-name">{d.display_name || 'Agent'}</span>
+            {d.agency && (
+              <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:"'DM Mono',monospace",
+                background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',
+                borderRadius:3,padding:'1px 5px',letterSpacing:'0.5px',textTransform:'uppercase'}}>
+                {d.agency}
+              </span>
+            )}
+            <span className="ticker-amount">{fmtT(parseFloat(d.amount))}</span>
+            <span className="ticker-time">{fmtAgo(d.posted_at)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
