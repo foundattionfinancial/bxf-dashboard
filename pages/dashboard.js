@@ -395,7 +395,7 @@ export default function Dashboard() {
         /* ---------- Ticker ---------- */
         .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:38px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
         .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll linear infinite}
-        .ticker-track:hover{animation-play-state:paused}
+        /* Hover no longer pauses — keep the ticker rolling. */
         @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
         .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:38px;transition:background .3s}
         .ticker-name{color:rgba(255,255,255,0.85);font-weight:500}
@@ -756,7 +756,8 @@ function lookupAgencyIcon(agencyStr, iconsMap) {
 
 function DealTicker({ deals, roleIcons }) {
   const items = [...deals, ...deals];
-  const speed = Math.max(deals.length * 7, 90);
+  // Bumped a notch: ~8s per item, min 105s total (was 7s / 90s).
+  const speed = Math.max(deals.length * 8, 105);
   const now = Date.now();
   return (
     <div className="ticker-wrap">
