@@ -1,23 +1,14 @@
 // pages/api/agency.js
-//
-// True hierarchical model. Each request renders ONE node in the tree —
-// drill-down is just "view a different node". Members are bucketed
-// exclusively into their deepest role, so rollups don't double-count.
-//
-// Tree:
-//   Blueprint Agency
-//     └─ The Foundation
-//          ├─ THE KEY AGENCY
-//          │    ├─ AA FINANCIAL
-//          │    └─ FORMULA FINANCIAL
-//          └─ Stark Financial
-//
-// Each owner can view their own subtree. Blueprint owner sees the whole
-// tree; Foundation owner sees Foundation down; Key owner sees Key down;
-// AA/Formula/Stark owners only see themselves.
-
 import { parse } from 'cookie';
 import { createClient } from '@supabase/supabase-js';
+import {
+  AGENCY_TREE,
+  OWNER_SELF,
+  subtreeOf,
+  depthOf,
+  pathFromOwnerTo,
+  getDiscordData,
+} from '../../lib/discord-cache';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -25,55 +16,8 @@ const supabase = createClient(
 );
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
-const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
-const AGENCY_TREE = {
-  'Blueprint Agency':  { parent: null,                children: ['The Foundation'],                       label: 'Blueprint Agency' },
-  'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial'],    label: 'The Foundation' },
-  'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'],   label: 'The Key Agency' },
-  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                       label: 'AA Financial' },
-  'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                       label: 'Formula Financial' },
-  'Stark Financial':   { parent: 'The Foundation',   children: [],                                       label: 'Stark Financial' },
-};
-
-const OWNER_SELF = {
-  'Agency Owner- Blueprint':         'Blueprint Agency',
-  'Agency Owner- The Foundation':    'The Foundation',
-  'Agency Owner- The Key':           'THE KEY AGENCY',
-  'Agency Owner- AA FINANCIAL':      'AA FINANCIAL',
-  'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
-  'Agency Owner- Stark Financial':   'Stark Financial',
-};
-
-function subtreeOf(node) {
-  if (!AGENCY_TREE[node]) return [];
-  const out = [node];
-  for (const c of AGENCY_TREE[node].children) out.push(...subtreeOf(c));
-  return out;
-}
-
-function depthOf(node) {
-  let d = 0;
-  let cur = AGENCY_TREE[node]?.parent;
-  while (cur) { d++; cur = AGENCY_TREE[cur].parent; }
-  return d;
-}
-
-// Path from owner's root agency down to a node, inclusive.
-function pathFromOwnerTo(ownerSelf, target) {
-  const sub = new Set(subtreeOf(ownerSelf));
-  if (!sub.has(target)) return null;
-  const path = [];
-  let cur = target;
-  while (cur && cur !== ownerSelf) {
-    path.unshift(cur);
-    cur = AGENCY_TREE[cur].parent;
-  }
-  path.unshift(ownerSelf);
-  return path;
-}
-
-// ---------- Eastern Time helpers (TZ-independent) ----------
+// ---------- Eastern Time helpers ----------
 
 function easternPartsOf(utcDate) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -118,71 +62,6 @@ function parseEasternYmd(ymd, endOfDay = false) {
   return endOfDay ? easternToUtc(+y, +mo, +d, 23, 59, 59) : easternToUtc(+y, +mo, +d, 0, 0, 0);
 }
 
-// ---------- Discord data cache ----------
-// The roles + full-member fetch is the bottleneck — a guild with thousands of
-// members can take 10–60s to paginate. Module-level cache means the first hit
-// per warm Vercel instance pays the cost, then subsequent /api/agency calls
-// (period changes, drilling around) finish in under a second.
-let DISCORD_CACHE = { at: 0, data: null, pending: null };
-const DISCORD_CACHE_TTL_MS = 60 * 1000; // 60 seconds
-
-async function fetchAllDiscordData() {
-  const rolesP = fetch(`https://discord.com/api/guilds/${GUILD_ID}/roles`, {
-    headers: { Authorization: `Bot ${BOT_TOKEN}` },
-  }).then(r => r.ok ? r.json() : null);
-
-  const membersP = (async () => {
-    let all = [];
-    let after = '0';
-    while (true) {
-      const r = await fetch(
-        `https://discord.com/api/guilds/${GUILD_ID}/members?limit=1000&after=${after}`,
-        { headers: { Authorization: `Bot ${BOT_TOKEN}` } }
-      );
-      if (!r.ok) break;
-      const m = await r.json();
-      if (!m.length) break;
-      all = all.concat(m);
-      if (m.length < 1000) break;
-      after = m[m.length - 1].user.id;
-    }
-    return all;
-  })();
-
-  const [allRoles, allMembers] = await Promise.all([rolesP, membersP]);
-  if (!allRoles) throw new Error('Failed to fetch roles');
-
-  const roleIdMap = {};
-  const roleIcons = {};
-  allRoles.forEach(r => {
-    roleIdMap[r.name] = r.id;
-    if (r.icon) {
-      roleIcons[r.name] = `https://cdn.discordapp.com/role-icons/${r.id}/${r.icon}.png?size=128`;
-    }
-  });
-  return { allRoles, roleIdMap, roleIcons, allMembers };
-}
-
-async function getDiscordData() {
-  if (DISCORD_CACHE.data && Date.now() - DISCORD_CACHE.at < DISCORD_CACHE_TTL_MS) {
-    return DISCORD_CACHE.data;
-  }
-  // Deduplicate concurrent cache-miss requests. If another invocation is
-  // already fetching, await its promise instead of starting a parallel fetch.
-  if (DISCORD_CACHE.pending) return DISCORD_CACHE.pending;
-  DISCORD_CACHE.pending = (async () => {
-    try {
-      const data = await fetchAllDiscordData();
-      DISCORD_CACHE = { at: Date.now(), data, pending: null };
-      return data;
-    } catch (e) {
-      DISCORD_CACHE.pending = null;
-      throw e;
-    }
-  })();
-  return DISCORD_CACHE.pending;
-}
-
 // ============================================================================
 
 export default async function handler(req, res) {
@@ -198,11 +77,9 @@ export default async function handler(req, res) {
   if (!ownerRole) return res.status(403).json({ error: 'Not an agency owner' });
   const ownerSelf = OWNER_SELF[ownerRole];
 
-  // Resolve current node. Accept both `node` (new) and `agency` (legacy) params.
   let requestedNode = nodeParam || legacyAgency || ownerSelf;
   let isDirectView = directParam === 'true';
   if (requestedNode === '__direct__') {
-    // Legacy: '__direct__' meant "direct view of owner's self"
     requestedNode = ownerSelf;
     isDirectView = true;
   }
@@ -232,10 +109,9 @@ export default async function handler(req, res) {
   const heatmapStart = ytdStart.getTime() < heatmapFloor.getTime() ? heatmapFloor : ytdStart;
 
   try {
-    // ----- Discord data (cached at module level, see getDiscordData) -----
     const { roleIdMap, roleIcons, allMembers } = await getDiscordData();
 
-    // ----- Map members to their agency roles (within owner's subtree) -----
+    // ----- Map members to agency roles within owner's subtree -----
     const visibleRoles = Array.from(ownerSubtree);
     const roleMemberMap = {};
     for (const roleName of visibleRoles) {
@@ -254,7 +130,6 @@ export default async function handler(req, res) {
         }));
     }
 
-    // ----- Compute deepest-role bucket per member -----
     const memberInfo = {};
     const memberRolesSet = {};
     for (const roleName of visibleRoles) {
@@ -274,21 +149,18 @@ export default async function handler(req, res) {
       memberBucket[id] = best;
     }
 
-    // ----- Scope members to current node's subtree -----
     const nodeSubtree = new Set(subtreeOf(node));
     const scopeAllIds = Object.keys(memberInfo).filter(id => nodeSubtree.has(memberBucket[id]));
     const scopeIds = isDirectView
       ? scopeAllIds.filter(id => memberBucket[id] === node)
       : scopeAllIds;
 
-    // ----- DB user metadata override -----
     const { data: dbUsers } = scopeIds.length
       ? await supabase.from('users').select('discord_id, display_name, avatar').in('discord_id', scopeIds)
       : { data: [] };
     const dbUserMap = {};
     (dbUsers || []).forEach(u => { dbUserMap[u.discord_id] = u; });
 
-    // ----- Deals fetchers -----
     async function fetchDeals(idsList, fromDate, toDate) {
       if (!idsList.length) return [];
       const out = [];
@@ -311,16 +183,11 @@ export default async function handler(req, res) {
       return out;
     }
 
-    // Both queries run in parallel — they're independent and each can take
-    // a couple seconds when there are thousands of deals to paginate.
     const [periodDeals, heatmapDeals] = await Promise.all([
-      // Period deals across the FULL node subtree (drives breakdown rollups).
       fetchDeals(scopeAllIds, startDate, endDate),
-      // Heatmap deals, year-scoped, respecting the direct-view filter.
       fetchDeals(scopeIds, heatmapStart, null),
     ]);
 
-    // ----- Leaderboard for the active view -----
     const scopeSet = new Set(scopeIds);
     const dealMap = {};
     periodDeals.forEach(d => {
@@ -345,7 +212,6 @@ export default async function handler(req, res) {
       .sort((a, b) => b.total - a.total)
       .map((u, i) => ({ ...u, rank: i + 1 }));
 
-    // ----- Breakdown: Direct first, then direct children -----
     const breakdown = [];
     if (nodeMeta.children.length > 0) {
       const directIds   = scopeAllIds.filter(id => memberBucket[id] === node);
@@ -377,14 +243,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // ----- Summary (reflects the active view) -----
     const summary = {
       total_production: leaderboard.reduce((s, u) => s + u.total, 0),
       total_deals: leaderboard.reduce((s, u) => s + u.count, 0),
       agent_count: leaderboard.length,
     };
 
-    // ----- Heatmap daily map (Eastern date bucketing) -----
     const dailyMap = {};
     heatmapDeals.forEach(d => {
       const dt = new Date(d.posted_at);
@@ -393,7 +257,6 @@ export default async function handler(req, res) {
       dailyMap[key] = (dailyMap[key] || 0) + parseFloat(d.amount);
     });
 
-    // Expose role icons for all roles the dashboard might render
     const exposedRoles = new Set([...visibleRoles, 'Blueprint Agency']);
     const exposedRoleIcons = {};
     for (const name of Object.keys(roleIcons)) {
@@ -401,7 +264,6 @@ export default async function handler(req, res) {
     }
 
     res.json({
-      // New tree-aware response shape
       node,
       node_label: nodeMeta.label,
       parent_node: nodeMeta.parent,
@@ -414,10 +276,9 @@ export default async function handler(req, res) {
       leaderboard,
       daily_map: dailyMap,
       role_icons: exposedRoleIcons,
-      // Owner context
       owner_role: ownerRole,
       owner_self: ownerSelf,
-      // Legacy keys (kept for back-compat with any cached frontend)
+      // Legacy back-compat
       agency_summaries: breakdown,
       self_role: ownerSelf,
       self_label: AGENCY_TREE[ownerSelf].label,
