@@ -467,37 +467,37 @@ export default function Dashboard() {
   );
 }
 
-function DealTicker({ deals }) {
-  const fmtAgo = iso => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const m = Math.floor(diff / 60000);
-    const h = Math.floor(m / 60);
-    const d = Math.floor(h / 24);
-    if (d > 0) return d + 'd ago';
-    if (h > 0) return h + 'h ago';
-    if (m > 0) return m + 'm ago';
-    return 'just now';
-  };
+function timeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(mins / 60);
+  const days = Math.floor(hrs / 24);
+  if (days > 0) return days + 'd ago';
+  if (hrs > 0) return hrs + 'h ago';
+  if (mins > 0) return mins + 'm ago';
+  return 'just now';
+}
 
+function DealTicker({ deals }) {
   const items = [...deals, ...deals];
   const speed = Math.max(deals.length * 3.5, 30);
 
   return (
     <div className="ticker-wrap">
       <div className="ticker-track" style={{animationDuration: `${speed}s`}}>
-        {items.map((d, i) => (
+        {items.map((deal, i) => (
           <div key={i} className="ticker-item">
             <div className="ticker-dot" />
-            <span className="ticker-name">{d.display_name || 'Agent'}</span>
-            {d.agency && (
+            <span className="ticker-name">{deal.display_name || 'Agent'}</span>
+            {deal.agency && (
               <span style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontFamily:"'DM Mono',monospace",
                 background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',
                 borderRadius:3,padding:'1px 5px',letterSpacing:'0.5px',textTransform:'uppercase'}}>
-                {d.agency}
+                {deal.agency}
               </span>
             )}
-            <span className="ticker-amount">{fmt(parseFloat(d.amount))}</span>
-            <span className="ticker-time">{fmtAgo(d.posted_at)}</span>
+            <span className="ticker-amount">{fmt(parseFloat(deal.amount))}</span>
+            <span className="ticker-time">{timeAgo(deal.posted_at)}</span>
           </div>
         ))}
       </div>
