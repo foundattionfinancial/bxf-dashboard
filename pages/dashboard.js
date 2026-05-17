@@ -386,13 +386,38 @@ export default function Dashboard() {
         .tooltip-date{color:rgba(255,255,255,.6);font-size:10px;margin-bottom:3px}
         .tooltip-amount{color:#60a5fa;font-weight:500}
         @media(max-width:768px){
-          .stat-grid{grid-template-columns:repeat(2,1fr)}.records-grid{grid-template-columns:1fr}.agency-stat-grid{grid-template-columns:repeat(2,1fr)}
-          .content{padding:14px}.header{padding:0 14px}.brand-name{display:none}
-          .period-nav-label{min-width:120px;font-size:10px}.agency-header-logo{width:48px;height:48px}
-          .hm-cell{height:44px}
+          html,body{overflow-x:hidden}
+          .content{padding:12px;width:100%;max-width:100%}
+          .header{padding:0 12px;gap:8px}
+          .brand-name{display:none}
+          .user-chip{padding:3px 10px 3px 3px;font-size:11px;max-width:130px}
+          .user-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+          .stat-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+          .stat-card{padding:14px 14px}
+          .stat-value{font-size:22px}
+          .records-grid{grid-template-columns:1fr}
+          .agency-stat-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+          .period-nav-label{min-width:120px;font-size:10px}
+          .agency-header-logo{width:48px;height:48px}
+          .agency-header{margin-bottom:10px}
+          .agency-controls{width:100%}
+          .agency-controls .pills{width:100%;justify-content:flex-start}
+          .breakdown-grid{grid-template-columns:1fr;gap:8px}
+          /* Heatmap: drop the week-total side column on mobile so the day
+             cells use the full width — that's where the right-side gap was. */
+          .hm-week{gap:0}
+          .hm-days{gap:2px}
+          .hm-day-header{gap:2px}
+          .hm-cell{height:44px;border-radius:4px}
           .hm-cell-num{font-size:12px}
-          .hm-cell-amt{font-size:11px}
-          .hm-week-total{width:54px;font-size:10px}
+          .hm-cell-amt{font-size:10px}
+          .hm-week-total{display:none}
+          /* Ticker: tighter padding so more rows fit per width. */
+          .ticker-item{padding:0 14px;gap:6px}
+          .ticker-avatar{width:20px;height:20px}
+          .ticker-agency-logo{width:16px;height:16px}
+          /* Card padding tightens up — saves ~12px horizontal. */
+          .card{padding:14px}
         }
         /* ---------- Ticker ---------- */
         .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:38px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
@@ -875,7 +900,7 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
                 );
               })}
             </div>
-            {wTotal>0?<div className="hm-week-total">{fmt(wTotal)}</div>:<div style={{width:64}}/>}
+            {wTotal>0?<div className="hm-week-total">{fmt(wTotal)}</div>:<div className="hm-week-total"/>}
           </div>
         );
       })}
