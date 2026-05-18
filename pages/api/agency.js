@@ -95,14 +95,20 @@ export default async function handler(req, res) {
   }));
 
   // ----- Period -> Eastern date range -----
+  // Explicit start/end params ALWAYS take precedence over the period preset.
+  // The dashboard sends start+end when the user navigates prev/next through
+  // weeks/months (period stays 'week'/'month' for the UI label, but the
+  // range is for the navigated window). Without this precedence, clicking
+  // ‹ on Week kept showing this week's numbers — period name won.
   let startDate = null, endDate = null;
-  if (period === 'today') startDate = easternMidnightOfToday();
-  else if (period === 'week')  startDate = easternMidnightOfWeek();
-  else if (period === 'month') startDate = easternMidnightOfMonth();
-  else if (period === 'year')  startDate = easternMidnightOfYear();
-  else if (period === 'custom') {
-    if (start) startDate = parseEasternYmd(start, false);
-    if (end)   endDate   = parseEasternYmd(end, true);
+  if (start) startDate = parseEasternYmd(start, false);
+  if (end)   endDate   = parseEasternYmd(end, true);
+  if (!startDate && !endDate) {
+    if (period === 'today')      startDate = easternMidnightOfToday();
+    else if (period === 'week')  startDate = easternMidnightOfWeek();
+    else if (period === 'month') startDate = easternMidnightOfMonth();
+    else if (period === 'year')  startDate = easternMidnightOfYear();
+    // 'all' or unknown -> no date filter (returns everything)
   }
   const heatmapFloor = easternToUtc(2025, 1, 1);
   const ytdStart = easternMidnightOfYear();
