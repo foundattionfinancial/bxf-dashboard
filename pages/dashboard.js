@@ -4,12 +4,13 @@ import { useRouter } from 'next/router';
 
 // Org tree (mirrors agency.js — keep these in sync).
 const AGENCY_TREE = {
-  'Blueprint Agency':  { parent: null,                children: ['The Foundation'],                    label: 'Blueprint Agency' },
-  'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial'], label: 'The Foundation' },
-  'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'], label: 'The Key Agency' },
-  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                    label: 'AA Financial' },
-  'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                    label: 'Formula Financial' },
-  'Stark Financial':   { parent: 'The Foundation',   children: [],                                    label: 'Stark Financial' },
+  'Blueprint Agency':  { parent: null,                children: ['The Foundation'],                                        label: 'Blueprint Agency' },
+  'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial', 'Ascend Financial'], label: 'The Foundation' },
+  'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'],                     label: 'The Key Agency' },
+  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'AA Financial' },
+  'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'Formula Financial' },
+  'Stark Financial':   { parent: 'The Foundation',   children: [],                                                        label: 'Stark Financial' },
+  'Ascend Financial':  { parent: 'The Foundation',   children: [],                                                        label: 'Ascend Financial' },
 };
 
 const OWNER_SELF = {
@@ -19,6 +20,7 @@ const OWNER_SELF = {
   'Agency Owner- AA FINANCIAL':      'AA FINANCIAL',
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
   'Agency Owner- Stark Financial':   'Stark Financial',
+  'Agency Owner- Ascend Financial':  'Ascend Financial',
 };
 const AGENCY_OWNER_ROLES = Object.keys(OWNER_SELF);
 
@@ -41,7 +43,6 @@ function getBadgeClass(r) {
 
 const fmt = n => '$' + Math.round(n).toLocaleString();
 const fmtCompact = n => {
-  // Compact $ amounts for heatmap cells: $8,367 -> "8.4k", $1,200,000 -> "1.2M"
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(n >= 10_000 ? 0 : 1) + 'k';
   return Math.round(n).toString();
@@ -117,9 +118,6 @@ export default function Dashboard() {
   const [agencyCustomStart, setAgencyCustomStart] = useState('');
   const [agencyCustomEnd, setAgencyCustomEnd] = useState('');
   const [agencyDateOffset, setAgencyDateOffset] = useState(0);
-  // NEW: tree navigation state.
-  //   agencyNode = the role we're viewing ('' = owner's self)
-  //   agencyDirect = filter to direct members only
   const [agencyNode, setAgencyNode] = useState('');
   const [agencyDirect, setAgencyDirect] = useState(false);
   const [tooltip, setTooltip] = useState(null);
@@ -131,15 +129,11 @@ export default function Dashboard() {
   const ownerRole = user && (user.roles||[]).find(r => AGENCY_OWNER_ROLES.includes(r));
   const ownerSelf = ownerRole ? OWNER_SELF[ownerRole] : null;
 
-  // Unified logo resolver. Same lookup logic as the ticker — exact match,
-  // case-insensitive match, then alias fallback. The merged source means
-  // agency-tab fresh icons take precedence over the standalone fetch.
   const iconUrl = (roleName) => {
     const merged = Object.assign({}, roleIcons, agencyData?.role_icons || {});
     return lookupAgencyIcon(roleName, merged);
   };
 
-  // Drill / navigate helpers
   const drillTo = (roleName) => {
     setAgencyNode(roleName || '');
     setAgencyDirect(false);
@@ -152,8 +146,6 @@ export default function Dashboard() {
     }).catch(()=>{});
   }, []);
 
-  // Ticker fires for everyone. /api/ticker scopes the data server-side:
-  // owners see their subtree, non-owners see the full Blueprint view.
   useEffect(() => {
     if (!user) return;
     const fetchTicker = () => {
@@ -177,8 +169,6 @@ export default function Dashboard() {
   }, [lbPeriod]);
 
   useEffect(() => { setAgencyDateOffset(0); }, [agencyPeriod]);
-
-  // Reset direct flag when navigating to a new node (it's per-node UX state).
   useEffect(() => { setAgencyDirect(false); }, [agencyNode]);
 
   useEffect(() => {
@@ -203,7 +193,6 @@ export default function Dashboard() {
       .catch(() => setAgencyLoading(false));
   }, [tab, agencyPeriod, agencyNode, agencyDirect, agencyCustomStart, agencyCustomEnd, agencyDateOffset, isOwner]);
 
-  // ----- Personal tab computed -----
   const filtered = filterDeals(deals, period);
   const total = filtered.reduce((s,d) => s + parseFloat(d.amount), 0);
   const count = filtered.length;
@@ -222,7 +211,6 @@ export default function Dashboard() {
   const dealsToShow = showAllDeals ? deals : deals.slice(0,30);
   const groupedDeals = groupByMonth(dealsToShow);
 
-  // ----- Agency tab computed -----
   const currentNode = agencyData?.node || agencyNode || ownerSelf;
   const nodeLabel = agencyData?.node_label || (currentNode && AGENCY_TREE[currentNode]?.label) || 'Agency';
   const breakdown = agencyData?.breakdown || [];
@@ -286,7 +274,6 @@ export default function Dashboard() {
         .bar{width:100%;background:rgba(37,99,235,.2);border-radius:3px 3px 0 0;min-height:2px;transition:background .2s}
         .bar-wrap:hover .bar{background:rgba(96,165,250,.5)}
         .bar-lbl{font-size:8px;color:rgba(255,255,255,.6);font-family:'DM Mono',monospace;white-space:nowrap}
-        /* ---------- Heatmap (LARGER cells/text — was 30px/9px/6px) ---------- */
         .hm-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
         .hm-nav-btn{background:none;border:none;font-size:22px;cursor:pointer;padding:0 4px;line-height:1;width:32px}
         .hm-nav-center{text-align:center}
@@ -349,7 +336,6 @@ export default function Dashboard() {
         .agency-stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .date-range{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .date-input{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:7px;color:#fff;font-family:'DM Mono',monospace;font-size:11px;padding:6px 10px;outline:none;colorscheme:dark}
-        /* ---------- Breakdown ---------- */
         .breakdown-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:14px}
         .breakdown-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;gap:6px;position:relative}
         .breakdown-card:hover{border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.03);transform:translateY(-1px)}
@@ -368,14 +354,12 @@ export default function Dashboard() {
         .agency-header-logo{width:64px;height:64px;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);flex-shrink:0;display:flex;align-items:center;justify-content:center}
         .agency-header-logo img{width:100%;height:100%;object-fit:contain;padding:4px}
         .agency-header-logo-placeholder{font-family:'Playfair Display',serif;font-size:24px;font-style:italic;color:rgba(255,255,255,.4)}
-        /* Breadcrumb */
         .breadcrumb{display:flex;align-items:center;gap:8px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;flex-wrap:wrap}
         .breadcrumb-item{color:rgba(255,255,255,.55);cursor:pointer;transition:color .15s;padding:4px 8px;border-radius:5px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.04)}
         .breadcrumb-item:hover{color:#fff;background:rgba(255,255,255,.04)}
         .breadcrumb-item.current{color:#60a5fa;background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);cursor:default;font-weight:700}
         .breadcrumb-item.current:hover{background:rgba(37,99,235,.1)}
         .breadcrumb-sep{color:rgba(255,255,255,.25);font-size:13px}
-        /* Period nav */
         .period-nav{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:14px;padding:12px 18px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:10px}
         .period-nav-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);color:#fff;font-size:18px;cursor:pointer;width:32px;height:32px;line-height:1;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:all .15s;padding:0}
         .period-nav-btn:hover:not(:disabled){background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25)}
@@ -403,8 +387,6 @@ export default function Dashboard() {
           .agency-controls{width:100%}
           .agency-controls .pills{width:100%;justify-content:flex-start}
           .breakdown-grid{grid-template-columns:1fr;gap:8px}
-          /* Heatmap: drop the week-total side column on mobile so the day
-             cells use the full width — that's where the right-side gap was. */
           .hm-week{gap:0}
           .hm-days{gap:2px}
           .hm-day-header{gap:2px}
@@ -412,40 +394,24 @@ export default function Dashboard() {
           .hm-cell-num{font-size:12px}
           .hm-cell-amt{font-size:10px}
           .hm-week-total{display:none}
-          /* Ticker: tighter padding so more rows fit per width. */
           .ticker-item{padding:0 14px;gap:6px}
           .ticker-avatar{width:20px;height:20px}
           .ticker-agency-logo{width:16px;height:16px}
-          /* Card padding tightens up — saves ~12px horizontal. */
           .card{padding:14px}
         }
-        /* ---------- Ticker ---------- */
         .ticker-wrap{width:100%;background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);overflow:hidden;height:38px;display:flex;align-items:center;position:sticky;top:60px;z-index:190;backdrop-filter:blur(20px)}
         .ticker-track{display:flex;align-items:center;gap:0;white-space:nowrap;animation:ticker-scroll linear infinite}
-        /* Hover no longer pauses — keep the ticker rolling. */
         @keyframes ticker-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
         .ticker-item{display:inline-flex;align-items:center;gap:8px;padding:0 22px;font-family:'DM Mono',monospace;font-size:11px;border-right:1px solid rgba(255,255,255,0.06);height:38px;transition:background .3s}
         .ticker-name{color:rgba(255,255,255,0.85);font-weight:500}
-        /* Gradient blue text effect — applied to ALL ticker amounts, not just recent. */
-        .ticker-amount{
-          font-weight:800;font-size:12px;letter-spacing:.3px;
-          background:linear-gradient(135deg,#3b82f6 0%,#60a5fa 35%,#93c5fd 65%,#60a5fa 100%);
-          -webkit-background-clip:text;background-clip:text;
-          -webkit-text-fill-color:transparent;color:transparent;
-          filter:drop-shadow(0 0 1px rgba(96,165,250,.35));
-        }
+        .ticker-amount{font-weight:800;font-size:12px;letter-spacing:.3px;background:linear-gradient(135deg,#3b82f6 0%,#60a5fa 35%,#93c5fd 65%,#60a5fa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 1px rgba(96,165,250,.35))}
         .ticker-time{color:#ffffff;font-size:11px;font-weight:600;letter-spacing:.2px}
         .ticker-dot{width:6px;height:6px;border-radius:50%;background:#60a5fa;opacity:0.45;flex-shrink:0;transition:all .3s}
         .ticker-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.06)}
         .ticker-agency-logo{width:18px;height:18px;border-radius:5px;object-fit:contain;flex-shrink:0;background:rgba(255,255,255,.06);padding:1px}
         .ticker-agency-text{font-size:9px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:1px 5px;letter-spacing:.5px;text-transform:uppercase}
         .ticker-item.recent{background:radial-gradient(ellipse at center,rgba(96,165,250,0.12) 0%,transparent 75%)}
-        /* Recent: intensify the gradient and add an external glow. */
-        .ticker-item.recent .ticker-amount{
-          background:linear-gradient(135deg,#60a5fa 0%,#93c5fd 50%,#dbeafe 100%);
-          -webkit-background-clip:text;background-clip:text;
-          filter:drop-shadow(0 0 8px rgba(147,197,253,.7));
-        }
+        .ticker-item.recent .ticker-amount{background:linear-gradient(135deg,#60a5fa 0%,#93c5fd 50%,#dbeafe 100%);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 8px rgba(147,197,253,.7))}
         .ticker-item.recent .ticker-name{color:#fff}
         .ticker-item.recent .ticker-dot{background:#60a5fa;opacity:1;animation:pulse-dot 1.8s ease-in-out infinite}
         .ticker-item.recent .ticker-avatar{border-color:rgba(96,165,250,.55);box-shadow:0 0 10px rgba(96,165,250,.45)}
@@ -653,11 +619,7 @@ export default function Dashboard() {
                     {breakdown.map(a => {
                       const logoSrc = a.is_direct ? iconUrl(a.node_role || currentNode) : iconUrl(a.role);
                       const onClick = () => {
-                        if (a.is_direct) {
-                          toggleDirect();
-                        } else {
-                          drillTo(a.role);
-                        }
+                        if (a.is_direct) { toggleDirect(); } else { drillTo(a.role); }
                       };
                       const activeClass = a.is_direct && agencyDirect ? 'active' : '';
                       return (
@@ -712,25 +674,19 @@ export default function Dashboard() {
   );
 }
 
+// FIXED: renamed vars to avoid Next.js minifier crash (m/h/d → diffMins/diffHrs/diffDays)
 function timeAgo(iso) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  const h = Math.floor(m / 60);
-  const d = Math.floor(h / 24);
-  if (d > 0) return d + 'd ago';
-  if (h > 0) return h + 'h ago';
-  if (m > 0) return m + 'm ago';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHrs = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays > 0) return diffDays + 'd ago';
+  if (diffHrs > 0) return diffHrs + 'h ago';
+  if (diffMins > 0) return diffMins + 'm ago';
   return 'just now';
 }
 
-// Resolve an agency string (whatever /api/ticker emits) to a role-icon URL.
-// /api/ticker may use any casing/formatting for the agency name; we fall back
-// through exact match → case-insensitive trimmed match → known aliases.
-// All the ways /api/ticker (or any other source) might spell an agency.
-// Keys are lowercased+trimmed; values are the canonical role names that
-// /api/role-icons returns. Order doesn't matter.
 const AGENCY_ALIAS = {
-  // AA Financial — many possible spellings
   'aa':                          'AA FINANCIAL',
   'aa financial':                'AA FINANCIAL',
   'aafinancial':                 'AA FINANCIAL',
@@ -739,51 +695,48 @@ const AGENCY_ALIAS = {
   'agency owner- aa financial':  'AA FINANCIAL',
   'agency owner-aa financial':   'AA FINANCIAL',
   'agency owner- aa':            'AA FINANCIAL',
-  // Formula Financial
   'formula':                          'FORMULA FINANCIAL',
   'formula financial':                'FORMULA FINANCIAL',
   'formulafinancial':                 'FORMULA FINANCIAL',
   'agency owner- formula financial':  'FORMULA FINANCIAL',
   'agency owner- formula':            'FORMULA FINANCIAL',
-  // The Key Agency
   'key':                       'THE KEY AGENCY',
   'the key':                   'THE KEY AGENCY',
   'key agency':                'THE KEY AGENCY',
   'the key agency':            'THE KEY AGENCY',
   'agency owner- the key':     'THE KEY AGENCY',
   'agency owner- key':         'THE KEY AGENCY',
-  // The Foundation
   'foundation':                       'The Foundation',
   'the foundation':                   'The Foundation',
   'agency owner- the foundation':     'The Foundation',
   'agency owner- foundation':         'The Foundation',
-  // Stark Financial
   'stark':                            'Stark Financial',
   'stark financial':                  'Stark Financial',
   'agency owner- stark financial':    'Stark Financial',
   'agency owner- stark':              'Stark Financial',
-  // Blueprint
   'blueprint':                        'Blueprint Agency',
   'blueprint agency':                 'Blueprint Agency',
   'agency owner- blueprint':          'Blueprint Agency',
+  // Ascend Financial
+  'ascend':                           'Ascend Financial',
+  'ascend financial':                 'Ascend Financial',
+  'agency owner- ascend financial':   'Ascend Financial',
+  'agency owner- ascend':             'Ascend Financial',
 };
+
 function lookupAgencyIcon(agencyStr, iconsMap) {
   if (!agencyStr || !iconsMap) return null;
-  // 1. Exact key match (fastest path — when role names are canonical).
   if (iconsMap[agencyStr]) return iconsMap[agencyStr];
-  // 2. Case-insensitive trimmed match against any key in the icons map.
   const norm = String(agencyStr).toLowerCase().trim();
   for (const k of Object.keys(iconsMap)) {
     if (k.toLowerCase().trim() === norm) return iconsMap[k];
   }
-  // 3. Aliases — short forms, owner-role prefixes, common typos.
   const canonical = AGENCY_ALIAS[norm];
   return canonical ? iconsMap[canonical] : null;
 }
 
 function DealTicker({ deals, roleIcons }) {
   const items = [...deals, ...deals];
-  // Bumped a notch: ~8s per item, min 105s total (was 7s / 90s).
   const speed = Math.max(deals.length * 8, 105);
   const now = Date.now();
   return (
