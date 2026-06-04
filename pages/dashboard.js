@@ -200,7 +200,7 @@ export default function Dashboard() {
   const myRank = leaderboard.find(u => u.discord_id === user?.discord_id)?.rank;
   const dailyMap = {};
   deals.forEach(d => {
-    const day = d.posted_at.slice(0,10);
+    const day = ymdLocal(new Date(new Date(d.posted_at).toLocaleString('en-US', { timeZone: 'America/New_York' })));
     dailyMap[day] = (dailyMap[day]||0) + parseFloat(d.amount);
   });
   const maxDay = Object.values(dailyMap).reduce((m,v) => v>m?v:m, 1);
@@ -503,8 +503,8 @@ export default function Dashboard() {
               <div className="hm-stat"><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
               <div className="hm-stat"><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
               <div className="hm-stat"><div className="hm-stat-label">Best Day</div><div className="hm-stat-value">{bestDay?fmt(bestDay[1]):'$0'}</div><div className="hm-stat-sub">{bestDay?new Date(bestDay[0]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—'}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Current Streak</div><div className="hm-stat-value streak">{currentStreak > 0 ? `${currentStreak}d 🔥` : '—'}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Best Streak</div><div className="hm-stat-value streak">{bestStreak > 0 ? `${bestStreak}d` : '—'}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Current Streak</div><div className="hm-stat-value streak">{currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'day' : 'days'} 🔥` : '—'}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Best Streak</div><div className="hm-stat-value streak">{bestStreak > 0 ? `${bestStreak} ${bestStreak === 1 ? 'day' : 'days'}` : '—'}</div></div>
             </div>
           </div>
           <div className="section-label">Records</div>
@@ -802,7 +802,7 @@ function DealTicker({ deals, roleIcons }) {
 function BarChart({ deals, setTooltip }) {
   const daily = {};
   deals.forEach(d => {
-    const k = d.posted_at.slice(0,10);
+    const k = ymdLocal(new Date(new Date(d.posted_at).toLocaleString('en-US', { timeZone: 'America/New_York' })));
     if (!daily[k]) daily[k]={total:0,count:0};
     daily[k].total+=parseFloat(d.amount); daily[k].count++;
   });
