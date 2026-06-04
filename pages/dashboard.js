@@ -208,6 +208,30 @@ export default function Dashboard() {
   const activeDays = Object.keys(dailyMap).length;
   const biggest = deals.reduce((m,d) => parseFloat(d.amount)>m?parseFloat(d.amount):m, 0);
   const allTimeTotal = deals.reduce((s,d) => s+parseFloat(d.amount), 0);
+
+  // Selling streaks — consecutive calendar days with at least 1 deal
+  const dealDaySet = new Set(Object.keys(dailyMap));
+  let currentStreak = 0;
+  {
+    const cursor = new Date(getEasternNow());
+    if (!dealDaySet.has(ymdLocal(cursor))) cursor.setDate(cursor.getDate() - 1);
+    while (dealDaySet.has(ymdLocal(cursor))) { currentStreak++; cursor.setDate(cursor.getDate() - 1); }
+  }
+  let bestStreak = 0;
+  {
+    const sortedDays = Array.from(dealDaySet).sort();
+    let run = 0;
+    for (let i = 0; i < sortedDays.length; i++) {
+      if (i === 0) { run = 1; }
+      else {
+        const prev = new Date(sortedDays[i-1] + 'T12:00:00');
+        const curr = new Date(sortedDays[i] + 'T12:00:00');
+        run = Math.round((curr - prev) / 86400000) === 1 ? run + 1 : 1;
+      }
+      if (run > bestStreak) bestStreak = run;
+    }
+  }
+
   const dealsToShow = showAllDeals ? deals : deals.slice(0,30);
   const groupedDeals = groupByMonth(dealsToShow);
 
@@ -287,10 +311,14 @@ export default function Dashboard() {
         .hm-cell-num{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;line-height:1}
         .hm-cell-amt{font-family:'DM Mono',monospace;font-size:13px;font-weight:800;color:#ffffff;line-height:1;letter-spacing:.3px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
         .hm-week-total{width:64px;text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:#fff;font-weight:600;cursor:pointer}
-        .hm-stats{display:flex;gap:32px;padding-top:14px;border-top:1px solid rgba(255,255,255,.04)}
-        .hm-stat-label{font-size:10px;color:#fff;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;opacity:.7}
-        .hm-stat-value{font-family:'DM Mono',monospace;font-size:20px;color:#fff}
-        .hm-stat-sub{font-size:10px;color:rgba(255,255,255,.7)}
+        .hm-stats{display:flex;gap:0;padding-top:16px;border-top:1px solid rgba(255,255,255,.04);justify-content:center;flex-wrap:wrap}
+        .hm-stat{display:flex;flex-direction:column;align-items:center;padding:0 28px;border-right:1px solid rgba(255,255,255,.06)}
+        .hm-stat:last-child{border-right:none}
+        .hm-stat-label{font-size:9px;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;opacity:.55;font-weight:700;text-align:center}
+        .hm-stat-value{font-family:'DM Mono',monospace;font-size:20px;color:#fff;text-align:center}
+        .hm-stat-sub{font-size:10px;color:rgba(255,255,255,.55);text-align:center;margin-top:2px}
+        .hm-stat-value.streak{font-family:'DM Mono',monospace;font-size:20px;background:linear-gradient(135deg,#3b82f6 0%,#60a5fa 40%,#93c5fd 70%,#60a5fa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 6px rgba(96,165,250,.4))}
+        @media(max-width:768px){.hm-stat{padding:0 14px}.hm-stats{gap:0}}
         .records-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .rec-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:16px 18px}
         .rec-label{font-size:10px;color:#fff;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;opacity:.7}
@@ -472,9 +500,11 @@ export default function Dashboard() {
             <div className="card-header"><div className="card-title">Production Heatmap</div></div>
             <MonthHeatmap dailyMap={dailyMap} maxDay={maxDay} setTooltip={setTooltip}/>
             <div className="hm-stats">
-              <div><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
-              <div><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
-              <div><div className="hm-stat-label">Best Day</div><div className="hm-stat-value">{bestDay?fmt(bestDay[1]):'$0'}</div><div className="hm-stat-sub">{bestDay?new Date(bestDay[0]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—'}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Best Day</div><div className="hm-stat-value">{bestDay?fmt(bestDay[1]):'$0'}</div><div className="hm-stat-sub">{bestDay?new Date(bestDay[0]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—'}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Current Streak</div><div className="hm-stat-value streak">{currentStreak > 0 ? `${currentStreak}d 🔥` : '—'}</div></div>
+              <div className="hm-stat"><div className="hm-stat-label">Best Streak</div><div className="hm-stat-value streak">{bestStreak > 0 ? `${bestStreak}d` : '—'}</div></div>
             </div>
           </div>
           <div className="section-label">Records</div>
