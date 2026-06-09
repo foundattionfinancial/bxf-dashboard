@@ -4,8 +4,9 @@ import { useRouter } from 'next/router';
 
 // Org tree (mirrors agency.js — keep these in sync).
 const AGENCY_TREE = {
-  'Blueprint Agency':  { parent: null,                children: ['The Foundation'],                                        label: 'Blueprint Agency' },
+  'Blueprint Agency':  { parent: null,                children: ['The Foundation', 'The Standard'],                        label: 'Blueprint Agency' },
   'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial', 'Ascend Financial'], label: 'The Foundation' },
+  'The Standard':      { parent: 'Blueprint Agency', children: [],                                                        label: 'The Standard' },
   'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'],                     label: 'The Key Agency' },
   'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'AA Financial' },
   'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'Formula Financial' },
@@ -16,6 +17,7 @@ const AGENCY_TREE = {
 const OWNER_SELF = {
   'Agency Owner- Blueprint':         'Blueprint Agency',
   'Agency Owner- The Foundation':    'The Foundation',
+  'Agency Owner- The Standard':      'The Standard',
   'Agency Owner- The Key':           'THE KEY AGENCY',
   'Agency Owner- AA FINANCIAL':      'AA FINANCIAL',
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
@@ -747,6 +749,11 @@ const AGENCY_ALIAS = {
   'blueprint':                        'Blueprint Agency',
   'blueprint agency':                 'Blueprint Agency',
   'agency owner- blueprint':          'Blueprint Agency',
+  // The Standard
+  'the standard':                     'The Standard',
+  'standard':                         'The Standard',
+  'agency owner- the standard':       'The Standard',
+  'agency owner- standard':           'The Standard',
   // Ascend Financial
   'ascend':                           'Ascend Financial',
   'ascend financial':                 'Ascend Financial',
