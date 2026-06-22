@@ -506,14 +506,7 @@ export default function Dashboard() {
           </div>
           <div className="card">
             <div className="card-header"><div className="card-title">Production Heatmap</div></div>
-            <MonthHeatmap dailyMap={dailyMap} setTooltip={setTooltip}/>
-            <div className="hm-stats">
-              <div className="hm-stat"><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Best Day</div><div className="hm-stat-value">{bestDay?fmt(bestDay[1]):'$0'}</div><div className="hm-stat-sub">{bestDay?new Date(bestDay[0]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—'}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Current Streak</div><div className="hm-stat-value streak">{currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'day' : 'days'} 🔥` : '—'}</div></div>
-              <div className="hm-stat"><div className="hm-stat-label">Best Streak</div><div className="hm-stat-value streak">{bestStreak > 0 ? `${bestStreak} ${bestStreak === 1 ? 'day' : 'days'}` : '—'}</div></div>
-            </div>
+            <MonthHeatmap dailyMap={dailyMap} setTooltip={setTooltip} allTimeTotal={allTimeTotal} activeDays={activeDays} bestDay={bestDay} currentStreak={currentStreak} bestStreak={bestStreak}/>
           </div>
           <div className="section-label">Records</div>
           <div className="records-grid">
@@ -840,9 +833,17 @@ function BarChart({ deals, setTooltip }) {
   );
 }
 
-function MonthHeatmap({ dailyMap, setTooltip, defaultMo = 0 }) {
+function MonthHeatmap({ dailyMap, setTooltip, defaultMo = 0, allTimeTotal, activeDays, bestDay, currentStreak, bestStreak }) {
   const [mo, setMo] = React.useState(defaultMo);
-  React.useEffect(() => { setMo(defaultMo); }, [defaultMo]);
+  const prevDefaultMo = React.useRef(defaultMo);
+  // Only sync to defaultMo when it actually changes from outside (agency nav),
+  // not on every re-render — this is what was resetting personal heatmap nav
+  React.useEffect(() => {
+    if (prevDefaultMo.current !== defaultMo) {
+      prevDefaultMo.current = defaultMo;
+      setMo(defaultMo);
+    }
+  }, [defaultMo]);
   const e = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
   const yr = e.getFullYear(); const em = e.getMonth();
   const tDate = new Date(yr, em+mo, 1);
@@ -928,6 +929,15 @@ function MonthHeatmap({ dailyMap, setTooltip, defaultMo = 0 }) {
             <div className="hm-month-stat-value">{mBestEntry ? fmt(mBestEntry[1]) : '—'}</div>
             {mBestEntry && <div className="hm-month-stat-sub">{new Date(mBestEntry[0]+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>}
           </div>
+        </div>
+      )}
+      {allTimeTotal !== undefined && (
+        <div className="hm-stats">
+          <div className="hm-stat"><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
+          <div className="hm-stat"><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
+          <div className="hm-stat"><div className="hm-stat-label">Best Day</div><div className="hm-stat-value">{bestDay?fmt(bestDay[1]):'$0'}</div><div className="hm-stat-sub">{bestDay?new Date(bestDay[0]).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}):'—'}</div></div>
+          <div className="hm-stat"><div className="hm-stat-label">Current Streak</div><div className="hm-stat-value streak">{currentStreak > 0 ? `${currentStreak} ${currentStreak === 1 ? 'day' : 'days'} 🔥` : '—'}</div></div>
+          <div className="hm-stat"><div className="hm-stat-label">Best Streak</div><div className="hm-stat-value streak">{bestStreak > 0 ? `${bestStreak} ${bestStreak === 1 ? 'day' : 'days'}` : '—'}</div></div>
         </div>
       )}
     </div>
