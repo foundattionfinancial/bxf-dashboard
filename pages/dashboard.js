@@ -320,7 +320,13 @@ export default function Dashboard() {
         .hm-stat-value{font-family:'DM Mono',monospace;font-size:20px;color:#fff;text-align:center}
         .hm-stat-sub{font-size:10px;color:rgba(255,255,255,.55);text-align:center;margin-top:2px}
         .hm-stat-value.streak{font-family:'DM Mono',monospace;font-size:20px;background:linear-gradient(135deg,#3b82f6 0%,#60a5fa 40%,#93c5fd 70%,#60a5fa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;filter:drop-shadow(0 0 6px rgba(96,165,250,.4))}
-        @media(max-width:768px){.hm-stat{padding:0 14px}.hm-stats{gap:0}}
+        .hm-month-stats{display:flex;gap:0;padding:14px 0 4px;border-top:1px solid rgba(255,255,255,.04);margin-top:14px;justify-content:center;flex-wrap:wrap}
+        .hm-month-stat{display:flex;flex-direction:column;align-items:center;padding:0 24px;border-right:1px solid rgba(255,255,255,.06)}
+        .hm-month-stat:last-child{border-right:none}
+        .hm-month-stat-label{font-size:9px;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px;opacity:.45;font-weight:700;text-align:center}
+        .hm-month-stat-value{font-family:'DM Mono',monospace;font-size:16px;color:#fff;text-align:center}
+        .hm-month-stat-sub{font-size:10px;color:rgba(255,255,255,.45);text-align:center;margin-top:2px}
+        @media(max-width:768px){.hm-stat{padding:0 14px}.hm-stats{gap:0}.hm-month-stat{padding:0 12px}}
         .records-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
         .rec-card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:12px;padding:16px 18px}
         .rec-label{font-size:10px;color:#fff;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;opacity:.7}
@@ -500,7 +506,7 @@ export default function Dashboard() {
           </div>
           <div className="card">
             <div className="card-header"><div className="card-title">Production Heatmap</div></div>
-            <MonthHeatmap dailyMap={dailyMap} maxDay={maxDay} setTooltip={setTooltip}/>
+            <MonthHeatmap dailyMap={dailyMap} setTooltip={setTooltip}/>
             <div className="hm-stats">
               <div className="hm-stat"><div className="hm-stat-label">All-Time</div><div className="hm-stat-value">{fmt(allTimeTotal)}</div></div>
               <div className="hm-stat"><div className="hm-stat-label">Active Days</div><div className="hm-stat-value">{activeDays}</div></div>
@@ -682,7 +688,7 @@ export default function Dashboard() {
 
               <div className="card">
                 <div className="card-header"><div className="card-title">Production Heatmap</div></div>
-                <MonthHeatmap dailyMap={agencyDailyMap} maxDay={agencyMaxDay} setTooltip={setTooltip}/>
+                <MonthHeatmap dailyMap={agencyDailyMap} setTooltip={setTooltip}/>
               </div>
 
               <div className="card" style={{padding:0}}>
@@ -834,7 +840,7 @@ function BarChart({ deals, setTooltip }) {
   );
 }
 
-function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
+function MonthHeatmap({ dailyMap, setTooltip }) {
   const [mo, setMo] = React.useState(0);
   const e = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
   const yr = e.getFullYear(); const em = e.getMonth();
@@ -845,7 +851,15 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
   const dim = new Date(ty,tm+1,0).getDate();
   const fdow = new Date(ty,tm,1).getDay();
   const mKey = `${ty}-${String(tm+1).padStart(2,'0')}`;
-  const mTotal = Object.entries(dailyMap||{}).filter(([k])=>k.startsWith(mKey)).reduce((s,[,v])=>s+v,0);
+
+  // Month-local entries only — fixes cell intensity on navigation
+  const mEntries = Object.entries(dailyMap||{}).filter(([k])=>k.startsWith(mKey));
+  const mTotal = mEntries.reduce((s,[,v])=>s+v,0);
+  const mMax = mEntries.reduce((m,[,v])=>v>m?v:m, 1);
+  const mActiveDays = mEntries.filter(([,v])=>v>0).length;
+  const mBestEntry = mEntries.sort((a,b)=>b[1]-a[1])[0];
+  const mAvg = mActiveDays > 0 ? mTotal / mActiveDays : 0;
+
   const todayKey = `${e.getFullYear()}-${String(e.getMonth()+1).padStart(2,'0')}-${String(e.getDate()).padStart(2,'0')}`;
   const cells = [];
   for(let i=0;i<fdow;i++) cells.push(null);
@@ -856,7 +870,7 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
   while(cells.length%7!==0) cells.push(null);
   const weeks=[];
   for(let i=0;i<cells.length;i+=7) weeks.push(cells.slice(i,i+7));
-  const safe = maxDay||1;
+
   return (
     <div>
       <div className="hm-nav">
@@ -877,7 +891,7 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
             <div className="hm-days">
               {week.map((cell,ci)=>{
                 if(!cell) return <div key={ci} className="hm-cell" style={{background:'transparent',cursor:'default'}}/>;
-                const r=cell.val/safe;
+                const r=cell.val/mMax;
                 const bg=cell.val===0?'rgba(255,255,255,.03)':r<0.25?'rgba(37,99,235,.18)':r<0.5?'rgba(37,99,235,.38)':r<0.75?'rgba(59,130,246,.58)':'rgba(96,165,250,.82)';
                 const dateStr=new Date(ty,tm,cell.d).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
                 return (
@@ -894,6 +908,27 @@ function MonthHeatmap({ dailyMap, maxDay, setTooltip }) {
           </div>
         );
       })}
+      {mTotal > 0 && (
+        <div className="hm-month-stats">
+          <div className="hm-month-stat">
+            <div className="hm-month-stat-label">Month Total</div>
+            <div className="hm-month-stat-value">{fmt(mTotal)}</div>
+          </div>
+          <div className="hm-month-stat">
+            <div className="hm-month-stat-label">Active Days</div>
+            <div className="hm-month-stat-value">{mActiveDays}</div>
+          </div>
+          <div className="hm-month-stat">
+            <div className="hm-month-stat-label">Avg Day</div>
+            <div className="hm-month-stat-value">{fmt(mAvg)}</div>
+          </div>
+          <div className="hm-month-stat">
+            <div className="hm-month-stat-label">Best Day</div>
+            <div className="hm-month-stat-value">{mBestEntry ? fmt(mBestEntry[1]) : '—'}</div>
+            {mBestEntry && <div className="hm-month-stat-sub">{new Date(mBestEntry[0]+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
