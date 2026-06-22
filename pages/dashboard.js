@@ -688,7 +688,7 @@ export default function Dashboard() {
 
               <div className="card">
                 <div className="card-header"><div className="card-title">Production Heatmap</div></div>
-                <MonthHeatmap dailyMap={agencyDailyMap} setTooltip={setTooltip}/>
+                <MonthHeatmap key={`${agencyPeriod}-${agencyDateOffset}-${agencyNode}`} dailyMap={agencyDailyMap} setTooltip={setTooltip} defaultMo={agencyPeriod === 'month' ? agencyDateOffset : 0}/>
               </div>
 
               <div className="card" style={{padding:0}}>
@@ -840,8 +840,9 @@ function BarChart({ deals, setTooltip }) {
   );
 }
 
-function MonthHeatmap({ dailyMap, setTooltip }) {
-  const [mo, setMo] = React.useState(0);
+function MonthHeatmap({ dailyMap, setTooltip, defaultMo = 0 }) {
+  const [mo, setMo] = React.useState(defaultMo);
+  React.useEffect(() => { setMo(defaultMo); }, [defaultMo]);
   const e = new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'}));
   const yr = e.getFullYear(); const em = e.getMonth();
   const tDate = new Date(yr, em+mo, 1);
