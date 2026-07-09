@@ -8,8 +8,9 @@ const AGENCY_TREE = {
   'The Foundation':    { parent: 'Blueprint Agency', children: ['THE KEY AGENCY', 'Stark Financial', 'Ascend Financial'], label: 'The Foundation' },
   'The Standard':      { parent: 'Blueprint Agency', children: [],                                                        label: 'The Standard' },
   'THE KEY AGENCY':    { parent: 'The Foundation',   children: ['AA FINANCIAL', 'FORMULA FINANCIAL'],                     label: 'The Key Agency' },
-  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'AA Financial' },
+  'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: ['RELENTLESS FINANCIAL'],                                  label: 'AA Financial' },
   'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'Formula Financial' },
+  'RELENTLESS FINANCIAL': { parent: 'AA FINANCIAL',  children: [],                                                        label: 'Relentless Financial' },
   'Stark Financial':   { parent: 'The Foundation',   children: [],                                                        label: 'Stark Financial' },
   'Ascend Financial':  { parent: 'The Foundation',   children: [],                                                        label: 'Ascend Financial' },
 };
@@ -21,6 +22,7 @@ const OWNER_SELF = {
   'Agency Owner- The Key':           'THE KEY AGENCY',
   'Agency Owner- AA FINANCIAL':      'AA FINANCIAL',
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
+  'Agency Owner- Relentless Financial': 'RELENTLESS FINANCIAL',
   'Agency Owner- Stark Financial':   'Stark Financial',
   'Agency Owner- Ascend Financial':  'Ascend Financial',
 };
@@ -726,6 +728,11 @@ const AGENCY_ALIAS = {
   'agency owner- aa financial':  'AA FINANCIAL',
   'agency owner-aa financial':   'AA FINANCIAL',
   'agency owner- aa':            'AA FINANCIAL',
+  // Relentless Financial
+  'relentless':                           'RELENTLESS FINANCIAL',
+  'relentless financial':                 'RELENTLESS FINANCIAL',
+  'agency owner- relentless financial':   'RELENTLESS FINANCIAL',
+  'agency owner- relentless':             'RELENTLESS FINANCIAL',
   'formula':                          'FORMULA FINANCIAL',
   'formula financial':                'FORMULA FINANCIAL',
   'formulafinancial':                 'FORMULA FINANCIAL',
