@@ -11,7 +11,8 @@ const AGENCY_TREE = {
   'AA FINANCIAL':      { parent: 'THE KEY AGENCY',   children: ['RELENTLESS FINANCIAL'],                                  label: 'AA Financial' },
   'FORMULA FINANCIAL': { parent: 'THE KEY AGENCY',   children: [],                                                        label: 'Formula Financial' },
   'RELENTLESS FINANCIAL': { parent: 'AA FINANCIAL',  children: [],                                                        label: 'Relentless Financial' },
-  'Stark Financial':   { parent: 'The Foundation',   children: [],                                                        label: 'Stark Financial' },
+  'Stark Financial':   { parent: 'The Foundation',   children: ['Pinpoint Financial'],                                    label: 'Stark Financial' },
+  'Pinpoint Financial': { parent: 'Stark Financial', children: [],                                                        label: 'Pinpoint Financial' },
   'Ascend Financial':  { parent: 'The Foundation',   children: [],                                                        label: 'Ascend Financial' },
 };
 
@@ -24,6 +25,7 @@ const OWNER_SELF = {
   'Agency Owner- Formula Financial': 'FORMULA FINANCIAL',
   'Agency Owner- Relentless Financial': 'RELENTLESS FINANCIAL',
   'Agency Owner- Stark Financial':   'Stark Financial',
+  'Agency Owner- Pinpoint Financial': 'Pinpoint Financial',
   'Agency Owner- Ascend Financial':  'Ascend Financial',
 };
 const AGENCY_OWNER_ROLES = Object.keys(OWNER_SELF);
@@ -752,6 +754,11 @@ const AGENCY_ALIAS = {
   'stark financial':                  'Stark Financial',
   'agency owner- stark financial':    'Stark Financial',
   'agency owner- stark':              'Stark Financial',
+  // Pinpoint Financial
+  'pinpoint':                         'Pinpoint Financial',
+  'pinpoint financial':               'Pinpoint Financial',
+  'agency owner- pinpoint financial': 'Pinpoint Financial',
+  'agency owner- pinpoint':           'Pinpoint Financial',
   'blueprint':                        'Blueprint Agency',
   'blueprint agency':                 'Blueprint Agency',
   'agency owner- blueprint':          'Blueprint Agency',
