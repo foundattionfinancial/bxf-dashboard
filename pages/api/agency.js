@@ -29,29 +29,29 @@ function easternPartsOf(utcDate) {
   const m = {};
   parts.forEach(p => { if (p.type !== 'literal') m[p.type] = p.value; });
   return {
-    year:  parseInt(m.year, 10),
-    month: parseInt(m.month, 10),
-    day:   parseInt(m.day, 10),
-    hour:  parseInt(m.hour === '24' ? '0' : m.hour, 10),
+    year:   parseInt(m.year, 10),
+    month:  parseInt(m.month, 10),
+    day:    parseInt(m.day, 10),
+    hour:   parseInt(m.hour === '24' ? '0' : m.hour, 10),
     minute: parseInt(m.minute, 10),
     second: parseInt(m.second, 10),
   };
 }
 function easternOffsetMinutes(utcDate) {
   const e = easternPartsOf(utcDate);
-  const eAsUtc = Date.UTC(e.year, e.month-1, e.day, e.hour, e.minute, e.second);
+  const eAsUtc = Date.UTC(e.year, e.month - 1, e.day, e.hour, e.minute, e.second);
   return (eAsUtc - utcDate.getTime()) / 60000;
 }
-function easternToUtc(y,m,d,h=0,mi=0,s=0) {
-  const guess = new Date(Date.UTC(y, m-1, d, h, mi, s));
+function easternToUtc(y, m, d, h = 0, mi = 0, s = 0) {
+  const guess = new Date(Date.UTC(y, m - 1, d, h, mi, s));
   return new Date(guess.getTime() - easternOffsetMinutes(guess) * 60000);
 }
 function easternMidnightOfToday() { const e = easternPartsOf(new Date()); return easternToUtc(e.year, e.month, e.day); }
 function easternMidnightOfWeek() {
   const e = easternPartsOf(new Date());
-  const probe = new Date(Date.UTC(e.year, e.month-1, e.day));
+  const probe = new Date(Date.UTC(e.year, e.month - 1, e.day));
   const startUtc = new Date(probe.getTime() - probe.getUTCDay() * 86400000);
-  return easternToUtc(startUtc.getUTCFullYear(), startUtc.getUTCMonth()+1, startUtc.getUTCDate());
+  return easternToUtc(startUtc.getUTCFullYear(), startUtc.getUTCMonth() + 1, startUtc.getUTCDate());
 }
 function easternMidnightOfMonth() { const e = easternPartsOf(new Date()); return easternToUtc(e.year, e.month, 1); }
 function easternMidnightOfYear()  { const e = easternPartsOf(new Date()); return easternToUtc(e.year, 1, 1); }
@@ -95,11 +95,6 @@ export default async function handler(req, res) {
   }));
 
   // ----- Period -> Eastern date range -----
-  // Explicit start/end params ALWAYS take precedence over the period preset.
-  // The dashboard sends start+end when the user navigates prev/next through
-  // weeks/months (period stays 'week'/'month' for the UI label, but the
-  // range is for the navigated window). Without this precedence, clicking
-  // ‹ on Week kept showing this week's numbers — period name won.
   let startDate = null, endDate = null;
   if (start) startDate = parseEasternYmd(start, false);
   if (end)   endDate   = parseEasternYmd(end, true);
@@ -108,7 +103,6 @@ export default async function handler(req, res) {
     else if (period === 'week')  startDate = easternMidnightOfWeek();
     else if (period === 'month') startDate = easternMidnightOfMonth();
     else if (period === 'year')  startDate = easternMidnightOfYear();
-    // 'all' or unknown -> no date filter (returns everything)
   }
   const heatmapFloor = easternToUtc(2025, 1, 1);
   const ytdStart = easternMidnightOfYear();
@@ -117,8 +111,10 @@ export default async function handler(req, res) {
   try {
     const { roleIdMap, roleIcons, allMembers } = await getDiscordData();
 
-    // ----- Map members to agency roles within owner's subtree -----
+    // ----- Build member → deepest-role bucket within owner's subtree -----
     const visibleRoles = Array.from(ownerSubtree);
+
+    // Map each role name → list of member objects
     const roleMemberMap = {};
     for (const roleName of visibleRoles) {
       const rid = roleIdMap[roleName];
@@ -136,6 +132,7 @@ export default async function handler(req, res) {
         }));
     }
 
+    // Collect all unique member info and which roles they hold
     const memberInfo = {};
     const memberRolesSet = {};
     for (const roleName of visibleRoles) {
@@ -145,6 +142,8 @@ export default async function handler(req, res) {
         memberRolesSet[m.discord_id].add(roleName);
       }
     }
+
+    // Assign each member to their single deepest role (leaf > parent)
     const memberBucket = {};
     for (const id of Object.keys(memberRolesSet)) {
       let best = null, bestD = -1;
@@ -155,7 +154,12 @@ export default async function handler(req, res) {
       memberBucket[id] = best;
     }
 
+    // All members whose bucket falls within the requested node's subtree
     const nodeSubtree = new Set(subtreeOf(node));
+
+    // FIX: use a single consistent member set for both period deals and heatmap.
+    // scopeAllIds = everyone in the node's subtree (used for breakdown + heatmap)
+    // scopeIds    = filtered to direct-only when isDirectView is set
     const scopeAllIds = Object.keys(memberInfo).filter(id => nodeSubtree.has(memberBucket[id]));
     const scopeIds = isDirectView
       ? scopeAllIds.filter(id => memberBucket[id] === node)
@@ -189,19 +193,26 @@ export default async function handler(req, res) {
       return out;
     }
 
-    const [periodDeals, heatmapDeals] = await Promise.all([
-      fetchDeals(scopeAllIds, startDate, endDate),
-      fetchDeals(scopeIds, heatmapStart, null),
+    // FIX: fetch period deals for scopeAllIds so breakdown per child is correct,
+    // then separately fetch heatmap deals for scopeIds (respects direct view).
+    // Summary + leaderboard are derived from scopeIds deals only.
+    const [allPeriodDeals, heatmapDeals] = await Promise.all([
+      fetchDeals(scopeAllIds, startDate, endDate),   // full subtree for breakdown
+      fetchDeals(scopeIds,    heatmapStart, null),   // scoped for heatmap
     ]);
 
+    // Deals visible to the leaderboard/summary (scopeIds only)
     const scopeSet = new Set(scopeIds);
+    const scopePeriodDeals = allPeriodDeals.filter(d => scopeSet.has(d.discord_id));
+
+    // Per-member aggregation for leaderboard
     const dealMap = {};
-    periodDeals.forEach(d => {
-      if (!scopeSet.has(d.discord_id)) return;
+    scopePeriodDeals.forEach(d => {
       if (!dealMap[d.discord_id]) dealMap[d.discord_id] = { total: 0, count: 0 };
       dealMap[d.discord_id].total += parseFloat(d.amount);
       dealMap[d.discord_id].count++;
     });
+
     const leaderboard = scopeIds
       .map(id => {
         const m = memberInfo[id];
@@ -218,51 +229,58 @@ export default async function handler(req, res) {
       .sort((a, b) => b.total - a.total)
       .map((u, i) => ({ ...u, rank: i + 1 }));
 
-    const breakdown = [];
-    if (nodeMeta.children.length > 0) {
-      const directIds   = scopeAllIds.filter(id => memberBucket[id] === node);
-      const directDeals = periodDeals.filter(d => memberBucket[d.discord_id] === node);
-      breakdown.push({
-        role: '__direct__',
-        node_role: node,
-        label: `${nodeMeta.label} (Direct)`,
-        is_direct: true,
-        sub_count: 0,
-        total_production: directDeals.reduce((s, d) => s + parseFloat(d.amount), 0),
-        total_deals: directDeals.length,
-        agent_count: directIds.length,
-      });
-    }
-    for (const childRole of nodeMeta.children) {
-      const childSub = new Set(subtreeOf(childRole));
-      const childIds   = scopeAllIds.filter(id => childSub.has(memberBucket[id]));
-      const childDeals = periodDeals.filter(d => childSub.has(memberBucket[d.discord_id]));
-      breakdown.push({
-        role: childRole,
-        label: AGENCY_TREE[childRole].label,
-        is_direct: false,
-        sub_count: AGENCY_TREE[childRole].children.length,
-        has_children: AGENCY_TREE[childRole].children.length > 0,
-        total_production: childDeals.reduce((s, d) => s + parseFloat(d.amount), 0),
-        total_deals: childDeals.length,
-        agent_count: childIds.length,
-      });
-    }
-
+    // Summary derived from leaderboard (scopeIds) — consistent with what's displayed
     const summary = {
       total_production: leaderboard.reduce((s, u) => s + u.total, 0),
-      total_deals: leaderboard.reduce((s, u) => s + u.count, 0),
-      agent_count: leaderboard.length,
+      total_deals:      leaderboard.reduce((s, u) => s + u.count, 0),
+      agent_count:      leaderboard.filter(u => u.total > 0 || u.count > 0).length,
     };
 
+    // Breakdown cards: each child uses allPeriodDeals so sub-agency totals
+    // include their full subtree regardless of the direct view toggle
+    const breakdown = [];
+    if (nodeMeta.children.length > 0) {
+      // Direct members card — agents bucketed exactly to this node
+      const directIds   = scopeAllIds.filter(id => memberBucket[id] === node);
+      const directDeals = allPeriodDeals.filter(d => memberBucket[d.discord_id] === node);
+      breakdown.push({
+        role:             '__direct__',
+        node_role:        node,
+        label:            `${nodeMeta.label} (Direct)`,
+        is_direct:        true,
+        sub_count:        0,
+        total_production: directDeals.reduce((s, d) => s + parseFloat(d.amount), 0),
+        total_deals:      directDeals.length,
+        agent_count:      directIds.length,
+      });
+
+      // One card per child sub-agency
+      for (const childRole of nodeMeta.children) {
+        const childSub   = new Set(subtreeOf(childRole));
+        const childIds   = scopeAllIds.filter(id => childSub.has(memberBucket[id]));
+        const childDeals = allPeriodDeals.filter(d => childSub.has(memberBucket[d.discord_id]));
+        breakdown.push({
+          role:             childRole,
+          label:            AGENCY_TREE[childRole].label,
+          is_direct:        false,
+          sub_count:        AGENCY_TREE[childRole].children.length,
+          has_children:     AGENCY_TREE[childRole].children.length > 0,
+          total_production: childDeals.reduce((s, d) => s + parseFloat(d.amount), 0),
+          total_deals:      childDeals.length,
+          agent_count:      childIds.length,
+        });
+      }
+    }
+
+    // Heatmap daily map — ET date keys
     const dailyMap = {};
     heatmapDeals.forEach(d => {
-      const dt = new Date(d.posted_at);
-      const e = easternPartsOf(dt);
+      const e   = easternPartsOf(new Date(d.posted_at));
       const key = `${e.year}-${String(e.month).padStart(2, '0')}-${String(e.day).padStart(2, '0')}`;
       dailyMap[key] = (dailyMap[key] || 0) + parseFloat(d.amount);
     });
 
+    // Only expose role icons for roles in the owner's visible subtree + Blueprint
     const exposedRoles = new Set([...visibleRoles, 'Blueprint Agency']);
     const exposedRoleIcons = {};
     for (const name of Object.keys(roleIcons)) {
@@ -271,25 +289,25 @@ export default async function handler(req, res) {
 
     res.json({
       node,
-      node_label: nodeMeta.label,
-      parent_node: nodeMeta.parent,
-      has_children: nodeMeta.children.length > 0,
-      sub_count: nodeMeta.children.length,
+      node_label:     nodeMeta.label,
+      parent_node:    nodeMeta.parent,
+      has_children:   nodeMeta.children.length > 0,
+      sub_count:      nodeMeta.children.length,
       is_direct_view: isDirectView,
       breadcrumb,
       breakdown,
       summary,
       leaderboard,
-      daily_map: dailyMap,
-      role_icons: exposedRoleIcons,
-      owner_role: ownerRole,
-      owner_self: ownerSelf,
+      daily_map:      dailyMap,
+      role_icons:     exposedRoleIcons,
+      owner_role:     ownerRole,
+      owner_self:     ownerSelf,
       // Legacy back-compat
       agency_summaries: breakdown,
-      self_role: ownerSelf,
-      self_label: AGENCY_TREE[ownerSelf].label,
-      filter_role: isDirectView ? '__direct__' : (node === ownerSelf ? null : node),
-      visible_roles: visibleRoles,
+      self_role:        ownerSelf,
+      self_label:       AGENCY_TREE[ownerSelf].label,
+      filter_role:      isDirectView ? '__direct__' : (node === ownerSelf ? null : node),
+      visible_roles:    visibleRoles,
     });
   } catch (e) {
     console.error('Agency error:', e);
