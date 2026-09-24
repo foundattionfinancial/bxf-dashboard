@@ -146,7 +146,7 @@ function makeBill(host, w, blur, dim) {
   return { el, shades: el.querySelectorAll('.cb-shade'), shines: el.querySelectorAll('.cb-shine') };
 }
 
-function CashRain({ seed, duration }) {
+function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4 }) {
   const backRef = useRef(null);
   const frontRef = useRef(null);
 
@@ -157,13 +157,12 @@ function CashRain({ seed, duration }) {
 
     const vw = window.innerWidth, vh = window.innerHeight;
     const weak = (navigator.hardwareConcurrency || 8) <= 4;
-    const TOTAL = weak ? 95 : 150;         // bills behind the popup
-    const FOREGROUND = weak ? 2 : 4;       // big blurred bills in front, kept to the edges
+    const TOTAL = weak ? Math.round(total * 0.63) : total;       // bills behind the popup
+    const FOREGROUND = weak ? Math.min(2, foreground) : foreground; // big blurred bills in front, kept to the edges
     const SPAWN_MS = Math.max(3000, duration * 0.55);
     const bills = [];
-    let spawned = 0, fgSpawned = 0, raf;
-    const t0 = performance.now();
-    let last = t0;
+    let spawned = 0, fgSpawned = 0, raf, startTimer;
+    let t0 = 0, last = 0;
 
     const spawn = (fg) => {
       const layer = fg ? 3 : (Math.random() < 0.34 ? 0 : Math.random() < 0.72 ? 1 : 2);
@@ -228,21 +227,35 @@ function CashRain({ seed, duration }) {
       }
       if (t < duration + 1500 && (bills.length || spawned < TOTAL)) raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
+    startTimer = setTimeout(() => {
+      t0 = last = performance.now();
+      raf = requestAnimationFrame(tick);
+    }, delay);
     return () => {
+      clearTimeout(startTimer);
       cancelAnimationFrame(raf);
       bills.forEach(b => b.el.remove());
     };
-  }, [seed, duration]);
+  }, [seed, duration, delay]);
 
   // Textures are shared through CSS variables so 150 bills reuse one decoded image
-  const tex = { '--bf': `url(${BILL_FRONT})`, '--bb': `url(${BILL_BACK})` };
+  const style = {
+    '--bf': `url(${BILL_FRONT})`, '--bb': `url(${BILL_BACK})`,
+    animation: `rainOut ${duration}ms linear ${delay}ms both`,   // fades in with the rain, out as it ends
+  };
   return (
     <>
-      <div className="rain rain-back" ref={backRef} style={tex} />
-      <div className="rain rain-front" ref={frontRef} style={tex} />
+      <div className="rain rain-back" ref={backRef} style={style} />
+      <div className="rain rain-front" ref={frontRef} style={style} />
     </>
   );
+}
+
+// word-by-word reveal for the video headline
+function Words({ text, start, step }) {
+  return text.split(' ').map((w, i) => (
+    <span key={i} className="w" style={{ animationDelay: `${(start + i * step).toFixed(2)}s` }}>{w}</span>
+  ));
 }
 
 function Logos({ cfg, big = false }) {
@@ -617,38 +630,45 @@ export default function OfficeTV({ office }) {
         .headline,.agent{will-change:opacity,transform}
         .vid-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 70%,rgba(0,0,0,.45) 100%)}
 
-        /* headline: fades in grand, holds, fades out by ~42% of the video */
+        /* headline: staged, grand entrance (~1s -> 7.5s), holds, then fades out at ~40% */
         .headline{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;
-          text-align:center;padding:12vh 6vw;
-          animation:hlOut 1.4s ease calc(var(--cd,30s) * .40) forwards}
-        @keyframes hlOut{to{opacity:0;filter:blur(10px);transform:translateY(-50%) scale(1.03)}}
+          text-align:center;padding:10vh 6vw;z-index:2;
+          animation:hlOut 1.8s cubic-bezier(.4,0,.2,1) calc(var(--cd,30s) * .40) forwards}
+        @keyframes hlOut{to{opacity:0;filter:blur(12px);transform:translateY(-50%) scale(1.04)}}
         .hl-band{position:absolute;inset:0;z-index:-1;
-          background:linear-gradient(90deg,rgba(3,7,20,0) 0%,rgba(3,7,20,.8) 18%,rgba(3,7,20,.86) 50%,rgba(3,7,20,.8) 82%,rgba(3,7,20,0) 100%);
-          -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 22%,#000 78%,transparent 100%);
-          mask-image:linear-gradient(180deg,transparent 0%,#000 22%,#000 78%,transparent 100%);
-          animation:fadeIn 1.2s ease calc(var(--cd,30s) * .04) both}
+          background:linear-gradient(90deg,rgba(3,7,20,0) 0%,rgba(3,7,20,.8) 18%,rgba(3,7,20,.87) 50%,rgba(3,7,20,.8) 82%,rgba(3,7,20,0) 100%);
+          -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 82%,transparent 100%);
+          mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 82%,transparent 100%);
+          animation:fadeIn 1.8s ease .9s both}
+        .hl-logos{display:flex;align-items:center;gap:2.2vh;margin-bottom:3vh;
+          animation:logoIn 1.6s cubic-bezier(.2,.9,.25,1) 1.6s both}
+        @keyframes logoIn{0%{opacity:0;transform:translateY(1.6vh) scale(.92);filter:blur(10px)}100%{opacity:1;transform:none;filter:blur(0)}}
+        .hl-logo{height:14.5vh;width:auto;display:block}
+        .hl-logo.bp{filter:drop-shadow(0 0 2.2vh rgba(59,140,255,.55))}
+        .hl-logo.fnd{height:15.5vh;filter:drop-shadow(0 0 1.6vh rgba(255,255,255,.18))}
+        .hl-x{font-size:5.2vh;font-weight:300;color:rgba(214,230,255,.75)}
         .hl-rule{width:46vw;height:2px;background:linear-gradient(90deg,transparent,#7FC0FF 30%,#3B8CFF 70%,transparent);
-          transform-origin:center;animation:ruleIn 1.3s cubic-bezier(.2,.9,.25,1) calc(var(--cd,30s) * .05) both;margin-bottom:3.4vh}
-        .hl-rule.bottom{margin:3.6vh 0 0}
+          transform-origin:center;animation:ruleIn 1.6s cubic-bezier(.2,.9,.25,1) 2.6s both;margin-bottom:3.2vh}
+        .hl-rule.bottom{margin:3.4vh 0 0;animation-delay:6.9s}
         @keyframes ruleIn{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
-        .hl-1{font-size:6.4vh;font-weight:800;letter-spacing:-.03em;line-height:1.05;color:#fff;
-          text-shadow:0 .4vh 2.4vh rgba(0,0,0,.65);
-          animation:hlIn 1.6s cubic-bezier(.2,.9,.25,1) calc(var(--cd,30s) * .06) both}
-        .hl-2{font-size:10.5vh;font-weight:800;letter-spacing:-.04em;line-height:1.02;margin-top:1.2vh;color:#fff;
-          text-shadow:0 .5vh 3vh rgba(0,0,0,.7);
-          animation:hlIn 1.8s cubic-bezier(.2,.9,.25,1) calc(var(--cd,30s) * .06 + .7s) both}
-        .hl-2 span{color:#9ED4FF;text-shadow:0 0 3vh rgba(59,140,255,.75),0 .5vh 3vh rgba(0,0,0,.6)}
-        @keyframes hlIn{0%{opacity:0;transform:translateY(3vh) scale(.97);filter:blur(10px);letter-spacing:.08em}
-          100%{opacity:1;transform:none;filter:blur(0)}}
+        .hl-1{font-size:6.4vh;font-weight:800;letter-spacing:-.03em;line-height:1.08;color:#fff;text-shadow:0 .4vh 2.4vh rgba(0,0,0,.65)}
+        .hl-2{font-size:10.5vh;font-weight:800;letter-spacing:-.04em;line-height:1.05;margin-top:1.2vh;color:#fff;text-shadow:0 .5vh 3vh rgba(0,0,0,.7)}
+        .w{display:inline-block;margin:0 .13em;opacity:0;animation:wordIn 1.2s cubic-bezier(.2,.9,.25,1) both}
+        @keyframes wordIn{0%{opacity:0;transform:translateY(2.6vh);filter:blur(8px)}100%{opacity:1;transform:none;filter:blur(0)}}
+        .hl-city{display:inline-block;margin-left:.13em;color:#9ED4FF;opacity:0;
+          text-shadow:0 0 3vh rgba(59,140,255,.75),0 .5vh 3vh rgba(0,0,0,.6);
+          animation:cityIn 1.9s cubic-bezier(.16,1,.3,1) both}
+        @keyframes cityIn{0%{opacity:0;transform:scale(1.28);filter:blur(16px);letter-spacing:.18em}
+          60%{opacity:1;filter:blur(0)}100%{opacity:1;transform:none;letter-spacing:-.04em}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
         /* agent card: arrives at ~50%, holds, fades out with the video */
-        .agent{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+        .agent{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
           opacity:0;animation:agIn 1.6s cubic-bezier(.2,.9,.25,1) calc(var(--cd,30s) * .5) both, agOut 1.3s ease calc(var(--cd,30s) - 1.8s) forwards}
         @keyframes agIn{0%{opacity:0;transform:scale(.92);filter:blur(12px)}100%{opacity:1;transform:none;filter:blur(0)}}
         @keyframes agOut{to{opacity:0;transform:scale(1.03);filter:blur(8px)}}
         .agent-scrim{position:absolute;left:50%;top:50%;width:64vw;height:84vh;transform:translate(-50%,-50%);z-index:-1;border-radius:4.4vh;
-          background:linear-gradient(180deg,rgba(9,16,38,.86) 0%,rgba(4,8,22,.9) 100%);border:1px solid rgba(140,190,255,.28);
+          background:linear-gradient(180deg,#0B1330 0%,#060B1D 100%);border:1px solid rgba(140,190,255,.28);
           box-shadow:0 0 0 1px rgba(59,140,255,.08) inset,0 3vh 10vh rgba(0,0,0,.45),0 0 8vh rgba(59,140,255,.18)}
         .ag-avwrap{position:relative;width:28vh;height:28vh;display:flex;align-items:center;justify-content:center}
         .ag-avwrap .pop-halo{width:58vh;height:58vh;margin:-29vh 0 0 -29vh}
@@ -697,16 +717,17 @@ export default function OfficeTV({ office }) {
           border-radius:2.4vh;padding:1.6vh 1.6vw;
           background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(160,190,255,.14)}
         /* #1 blue card, gold glow  |  #2 silver  |  #3 bronze */
-        .pod-1{--accent:#F5C451;
+        @property --pod-angle{syntax:'<angle>';inherits:false;initial-value:0deg}
+        .pod-1{--accent:#F5C451;border-color:transparent;
           background:linear-gradient(160deg,rgba(59,140,255,.34) 0%,rgba(40,90,200,.18) 55%,rgba(20,40,110,.12) 100%);
-          border:1.5px solid rgba(245,196,81,.8);animation:goldGlow 3.2s ease-in-out infinite}
-        @keyframes goldGlow{
-          0%,100%{box-shadow:0 0 0 1px rgba(245,196,81,.25) inset,0 0 2.4vh rgba(245,196,81,.35),0 0 7vh rgba(245,196,81,.16)}
-          50%{box-shadow:0 0 0 1px rgba(245,196,81,.4) inset,0 0 3.6vh rgba(245,196,81,.55),0 0 11vh rgba(245,196,81,.26)}}
-        .pod-1::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-          background:linear-gradient(105deg,transparent 35%,rgba(255,230,160,.10) 48%,transparent 60%);background-size:250% 100%;
-          animation:sheen 6s ease-in-out infinite}
-        @keyframes sheen{0%,60%{background-position:120% 0}100%{background-position:-120% 0}}
+          box-shadow:0 0 2.6vh rgba(245,196,81,.32),0 0 8vh rgba(245,196,81,.14)}
+        /* gold border with a soft bright band that slowly travels around it */
+        .pod-1::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:2.5px;pointer-events:none;z-index:2;
+          background:conic-gradient(from var(--pod-angle),rgba(245,196,81,.6) 0deg,rgba(245,196,81,.6) 235deg,#FFD978 285deg,#FFF8E1 312deg,#FFD978 338deg,rgba(245,196,81,.6) 360deg);
+          -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+          mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);
+          animation:podSpin 7s linear infinite}
+        @keyframes podSpin{to{--pod-angle:360deg}}
         .pod-2{--accent:#D9E1EE;border:1.5px solid rgba(217,225,238,.6);
           box-shadow:0 0 0 1px rgba(217,225,238,.12) inset,0 0 2.6vh rgba(217,225,238,.16),0 0 6vh rgba(217,225,238,.07)}
         .pod-3{--accent:#DB935C;border:1.5px solid rgba(219,147,92,.65);
@@ -739,7 +760,7 @@ export default function OfficeTV({ office }) {
         .row.is-zero{opacity:.4}
         .empty{margin:auto;font-size:2.4vh;font-weight:500;color:var(--slate)}
 
-        .hot{animation:hot 1.4s ease-in-out 5}
+        .hot:not(.pod-1){animation:hot 1.4s ease-in-out 5}
         @keyframes hot{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}50%{box-shadow:0 0 0 .4vh rgba(52,211,153,.6),0 0 6vh rgba(52,211,153,.35)}}
         .row.hot{animation:hotRow 1.4s ease-in-out 5}
         @keyframes hotRow{0%,100%{background:transparent}50%{background:rgba(52,211,153,.14)}}
@@ -754,7 +775,7 @@ export default function OfficeTV({ office }) {
         @keyframes dim{0%{opacity:0}8%{opacity:1}90%{opacity:1}100%{opacity:0}}
         .flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(59,140,255,.35),transparent 55%);animation:flash 1.4s ease-out both}
         @keyframes flash{0%{opacity:0;transform:scale(.6)}25%{opacity:1}100%{opacity:0;transform:scale(1.4)}}
-        .rain{position:absolute;inset:0;overflow:hidden;contain:strict;perspective:1400px;perspective-origin:50% 35%;pointer-events:none;animation:rainOut var(--cd,8s) linear both}
+        .rain{position:absolute;inset:0;overflow:hidden;contain:strict;perspective:1400px;perspective-origin:50% 35%;pointer-events:none}
         .rain-back{z-index:1}
         .rain-front{z-index:4}
         @keyframes rainOut{0%{opacity:0}4%{opacity:1}88%{opacity:1}100%{opacity:0}}
@@ -820,7 +841,7 @@ export default function OfficeTV({ office }) {
         .discord-btn:focus-visible{outline:3px solid #9FD4FF;outline-offset:3px}
 
         @media (prefers-reduced-motion: reduce){
-          .hot,.pop-ring,.pop-halo,.pop-wave,.pod-1,.pod-1::after{animation:none!important}
+          .hot,.pop-ring,.pop-halo,.pop-wave,.pod-1::before{animation:none!important}
         }
       ` }} />
 
@@ -939,11 +960,20 @@ export default function OfficeTV({ office }) {
               <div className="vid-shade" />
               <div className="headline">
                 <div className="hl-band" />
+                <div className="hl-logos">
+                  <img src={BP_LOGO} alt="The Blueprint Agency" className="hl-logo bp" />
+                  <span className="hl-x">×</span>
+                  <img src={FOUNDATION_LOGO} alt="The Foundation" className="hl-logo fnd" />
+                </div>
                 <div className="hl-rule" />
-                <div className="hl-1">Another family has been protected</div>
-                <div className="hl-2">in the city of <span>{cfg.city}</span></div>
+                <div className="hl-1"><Words text="Another family has been protected" start={3.3} step={0.17} /></div>
+                <div className="hl-2">
+                  <Words text="in the city of" start={4.9} step={0.17} />
+                  <span className="hl-city" style={{ animationDelay: '5.8s' }}>{cfg.city}</span>
+                </div>
                 <div className="hl-rule bottom" />
               </div>
+              <CashRain seed={current.key} delay={Math.round(current.ms * 0.5)} duration={Math.round(current.ms * 0.5)} total={110} foreground={3} />
               <div className="agent">
                 <div className="agent-scrim" />
                 <div className="ag-avwrap">
