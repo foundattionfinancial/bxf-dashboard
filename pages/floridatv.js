@@ -591,7 +591,7 @@ export default function TV() {
               <div className="stat"><div className="stat-v"><AnimatedNumber value={board.total} /></div><div className="stat-l">Submitted</div></div>
               <div className="stat"><div className="stat-v">{board.deals}</div><div className="stat-l">Deals</div></div>
               <div className="stat"><div className="stat-v">{board.people}</div><div className="stat-l">People</div></div>
-              <div className="stat"><div className="stat-v"><AnimatedNumber value={board.avg} /></div><div className="stat-l">Avg ticket</div></div>
+              <div className="stat"><div className="stat-v"><AnimatedNumber value={board.avg} /></div><div className="stat-l">Avg deal size</div></div>
             </div>
           </header>
 
