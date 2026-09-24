@@ -1,8 +1,8 @@
-// pages/api/tv.js — South Florida Office TV leaderboard feed
+// pages/api/tv.js — office TV leaderboard feed (?office=south-florida | dallas; see lib/offices.js)
 //
-// Access: the TV signs in once with a Discord account that has the
-// "South Florida Leaderboard" role (see lib/tv-auth.js). A backup URL key
-// (/floridatv?key=YOUR_TV_KEY, with TV_KEY set in Vercel) also works.
+// Access: the TV signs in once with a Discord account that has that office's
+// leaderboard role (see lib/offices.js + lib/tv-auth.js). A backup URL key
+// (?key=YOUR_TV_KEY, with TV_KEY set in Vercel) also works for any office.
 //
 // Returns one board per requested period (default: today + week) so the TV can
 // rotate between them without refetching, plus the newest deals so the TV can
@@ -10,11 +10,11 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { getDiscordData } from '../../lib/discord-cache';
-import { VIEWER_ROLES, readSession, makeSessionCookie, needsRenewal } from '../../lib/tv-auth';
+import { readSession, makeSessionCookie, needsRenewal } from '../../lib/tv-auth';
+import { OFFICES, officeOf } from '../../lib/offices';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-const OFFICE_ROLE = 'South Florida Office';
 const BOARD_SIZE = 13;               // top 3 podium + 10 below
 const RECENT_LIMIT = 25;
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
@@ -129,10 +129,12 @@ async function fetchOfficeDeals(ids, startISO) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
+  const officeKey = officeOf(String(req.query.office || ''));
+  const cfg = OFFICES[officeKey];
   const keyOk = !!process.env.TV_KEY && req.query.key === process.env.TV_KEY;
   const session = keyOk ? null : readSession(req);
   if (!keyOk && !session) {
-    return res.status(401).json({ code: 'login_required', error: 'Sign in with the South Florida Leaderboard Discord account.' });
+    return res.status(401).json({ code: 'login_required', error: `Sign in with the ${cfg.viewerRole} Discord account.` });
   }
 
   const periods = String(req.query.periods || 'today,week')
@@ -144,17 +146,17 @@ export default async function handler(req, res) {
 
     // Signed-in TV: the account must still hold a viewer role
     if (session) {
-      const viewerIds = VIEWER_ROLES.map(r => roleIdMap[r]).filter(Boolean);
+      const viewerId = roleIdMap[cfg.viewerRole];
       const me = allMembers.find(m => m.user.id === session.id);
-      if (!me || !(me.roles || []).some(r => viewerIds.includes(r))) {
-        return res.status(403).json({ code: 'missing_role', error: `This Discord account no longer has the ${VIEWER_ROLES[0]} role.` });
+      if (!me || !viewerId || !(me.roles || []).includes(viewerId)) {
+        return res.status(403).json({ code: 'missing_role', error: `This Discord account doesn't have the ${cfg.viewerRole} role.` });
       }
       if (needsRenewal(session)) res.setHeader('Set-Cookie', makeSessionCookie(session.id, session.name));
     }
 
-    const roleId = roleIdMap[OFFICE_ROLE];
+    const roleId = roleIdMap[cfg.memberRole];
     if (!roleId) {
-      return res.status(500).json({ error: `No Discord role named "${OFFICE_ROLE}". Create it and assign it to the office agents.` });
+      return res.status(500).json({ error: `No Discord role named "${cfg.memberRole}". Create it and assign it to the office agents.` });
     }
 
     const roster = {};
@@ -203,6 +205,8 @@ export default async function handler(req, res) {
         people: ranked.length,                   // People: agents on this leaderboard
         avg: ranked.length ? total / ranked.length : 0,   // Avg ticket: total ÷ people
         board: ranked.slice(0, BOARD_SIZE),
+        // every producer's standing, for the video celebration's "#2 this week / 7 families"
+        ranks: Object.fromEntries(ranked.map(u => [u.discord_id, { rank: u.rank, total: u.total, count: u.count }])),
       };
     }
 
@@ -216,8 +220,8 @@ export default async function handler(req, res) {
     }));
 
     res.json({
-      office: 'South Florida',
-      agency: 'Blueprint Agency',
+      office: cfg.title,
+      office_key: officeKey,
       agents: ids.length,
       guild_icon: await guildIcon(),
       periods,
