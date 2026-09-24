@@ -133,6 +133,24 @@ function playSaleSound() {
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 
+// Bill textures: real photos win if /public/bill-front.jpg and /public/bill-back.jpg
+// exist (checked once per page load); otherwise the built-in HD artwork is used.
+const billTex = { front: BILL_FRONT, back: BILL_BACK, probed: false };
+function probeRealBills() {
+  if (billTex.probed) return;
+  billTex.probed = true;
+  ['front', 'back'].forEach(side => {
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth >= 400) {
+        billTex[side] = `/bill-${side}.jpg`;
+        if (img.decode) img.decode().catch(() => {});
+      }
+    };
+    img.src = `/bill-${side}.jpg`;
+  });
+}
+
 function makeBill(host, w, blur, dim) {
   const el = document.createElement('div');
   el.className = 'cb';
@@ -146,7 +164,7 @@ function makeBill(host, w, blur, dim) {
   return { el, shades: el.querySelectorAll('.cb-shade'), shines: el.querySelectorAll('.cb-shine') };
 }
 
-function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4 }) {
+function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4, untilEnd = false, avoidCenter = false }) {
   const backRef = useRef(null);
   const frontRef = useRef(null);
 
@@ -159,7 +177,7 @@ function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4 }) {
     const weak = (navigator.hardwareConcurrency || 8) <= 4;
     const TOTAL = weak ? Math.round(total * 0.63) : total;       // bills behind the popup
     const FOREGROUND = weak ? Math.min(2, foreground) : foreground; // big blurred bills in front, kept to the edges
-    const SPAWN_MS = Math.max(3000, duration * 0.55);
+    const SPAWN_MS = untilEnd ? Math.max(3000, duration - 1600) : Math.max(3000, duration * 0.55);
     const bills = [];
     let spawned = 0, fgSpawned = 0, raf, startTimer;
     let t0 = 0, last = 0;
@@ -173,7 +191,9 @@ function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4 }) {
       const speed = vh * (layer === 0 ? rnd(0.36, 0.44) : layer === 1 ? rnd(0.48, 0.6) : layer === 2 ? rnd(0.62, 0.76) : rnd(0.9, 1.05));
       const x0 = fg
         ? (Math.random() < 0.5 ? rnd(-0.08, 0.12) : rnd(0.78, 0.98)) * vw
-        : rnd(-0.06, 1.0) * vw;
+        : (avoidCenter && Math.random() < 0.72
+            ? (Math.random() < 0.5 ? rnd(-0.08, 0.2) : rnd(0.74, 1.0))   // mostly down the sides, around the card
+            : rnd(-0.06, 1.0)) * vw;
       Object.assign(b, {
         w, x0, y: -w * rnd(0.7, 1.6), vy: speed,
         swayA: w * rnd(0.35, 0.9), swayF: rnd(0.55, 1.15), ph: rnd(0, Math.PI * 2),
@@ -240,7 +260,7 @@ function CashRain({ seed, duration, delay = 0, total = 150, foreground = 4 }) {
 
   // Textures are shared through CSS variables so 150 bills reuse one decoded image
   const style = {
-    '--bf': `url(${BILL_FRONT})`, '--bb': `url(${BILL_BACK})`,
+    '--bf': `url(${billTex.front})`, '--bb': `url(${billTex.back})`,
     animation: `rainOut ${duration}ms linear ${delay}ms both`,   // fades in with the rain, out as it ends
   };
   return (
@@ -349,7 +369,7 @@ export default function OfficeTV({ office }) {
   const skipFlipRef = useRef(false);
 
   useEffect(() => {
-    if (isVideo) return;
+    probeRealBills();
     [BILL_FRONT, BILL_BACK].forEach(src => { const i = new Image(); i.src = src; if (i.decode) i.decode().catch(() => {}); });
   }, []);
 
@@ -611,7 +631,7 @@ export default function OfficeTV({ office }) {
           background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(160,190,255,.16)}
         .logo-tile img{width:86%;height:86%;object-fit:contain;filter:drop-shadow(0 0 1.6vh rgba(59,140,255,.45))}
         .eyebrow{font-size:1.45vh;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:var(--slate);margin-bottom:.9vh}
-        .title{font-size:5vh;font-weight:650;letter-spacing:-.042em;line-height:1.02}
+        .title{font-size:5vh;font-weight:650;letter-spacing:-.042em;line-height:1.12}
         .title-row{display:flex;align-items:center;gap:1.2vw}
         .logos{display:flex;align-items:center;flex:none}
         .logos-item{display:flex;align-items:center}
@@ -628,35 +648,30 @@ export default function OfficeTV({ office }) {
         .vid-overlay .pop-ring{filter:none;box-shadow:0 0 2.4vh rgba(59,140,255,.7)}
         .vid-overlay .pop-halo,.vid-overlay .pop-ring,.vid-overlay .pop-wave{will-change:transform,opacity}
         .headline,.agent{will-change:opacity,transform}
-        .vid-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,0) 22%,rgba(0,0,0,0) 70%,rgba(0,0,0,.45) 100%)}
+        .vid-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.42) 0%,rgba(0,0,0,.14) 38%,rgba(0,0,0,0) 60%,rgba(0,0,0,.35) 100%)}
 
         /* headline: staged, grand entrance (~1s -> 7.5s), holds, then fades out at ~40% */
-        .headline{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;
-          text-align:center;padding:10vh 6vw;z-index:2;
+        .headline{position:absolute;left:0;right:0;top:9vh;display:flex;flex-direction:column;align-items:center;
+          text-align:center;padding:0 6vw;z-index:2;
           animation:hlOut 1.8s cubic-bezier(.4,0,.2,1) calc(var(--cd,30s) * .40) forwards}
-        @keyframes hlOut{to{opacity:0;filter:blur(12px);transform:translateY(-50%) scale(1.04)}}
-        .hl-band{position:absolute;inset:0;z-index:-1;
-          background:linear-gradient(90deg,rgba(3,7,20,0) 0%,rgba(3,7,20,.8) 18%,rgba(3,7,20,.87) 50%,rgba(3,7,20,.8) 82%,rgba(3,7,20,0) 100%);
-          -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 82%,transparent 100%);
-          mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 82%,transparent 100%);
-          animation:fadeIn 1.8s ease .9s both}
-        .hl-logos{display:flex;align-items:center;gap:2.2vh;margin-bottom:3vh;
+        @keyframes hlOut{to{opacity:0;filter:blur(12px);transform:scale(1.04)}}
+        .hl-logos{display:flex;align-items:center;gap:2.4vh;margin-bottom:4.2vh;
           animation:logoIn 1.6s cubic-bezier(.2,.9,.25,1) 1.6s both}
         @keyframes logoIn{0%{opacity:0;transform:translateY(1.6vh) scale(.92);filter:blur(10px)}100%{opacity:1;transform:none;filter:blur(0)}}
         .hl-logo{height:14.5vh;width:auto;display:block}
-        .hl-logo.bp{filter:drop-shadow(0 0 2.2vh rgba(59,140,255,.55))}
-        .hl-logo.fnd{height:15.5vh;filter:drop-shadow(0 0 1.6vh rgba(255,255,255,.18))}
-        .hl-x{font-size:5.2vh;font-weight:300;color:rgba(214,230,255,.75)}
+        .hl-logo.bp{filter:drop-shadow(0 .6vh 2vh rgba(0,0,0,.55)) drop-shadow(0 0 2.2vh rgba(59,140,255,.5))}
+        .hl-logo.fnd{height:15.5vh;filter:drop-shadow(0 .6vh 2vh rgba(0,0,0,.7)) drop-shadow(0 0 1.4vh rgba(0,0,0,.5))}
+        .hl-x{font-size:5.2vh;font-weight:300;color:#fff;text-shadow:0 .4vh 1.6vh rgba(0,0,0,.7)}
         .hl-rule{width:46vw;height:2px;background:linear-gradient(90deg,transparent,#7FC0FF 30%,#3B8CFF 70%,transparent);
           transform-origin:center;animation:ruleIn 1.6s cubic-bezier(.2,.9,.25,1) 2.6s both;margin-bottom:3.2vh}
         .hl-rule.bottom{margin:3.4vh 0 0;animation-delay:6.9s}
         @keyframes ruleIn{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
-        .hl-1{font-size:6.4vh;font-weight:800;letter-spacing:-.03em;line-height:1.08;color:#fff;text-shadow:0 .4vh 2.4vh rgba(0,0,0,.65)}
-        .hl-2{font-size:10.5vh;font-weight:800;letter-spacing:-.04em;line-height:1.05;margin-top:1.2vh;color:#fff;text-shadow:0 .5vh 3vh rgba(0,0,0,.7)}
+        .hl-1{font-size:6.6vh;font-weight:800;letter-spacing:-.03em;line-height:1.15;color:#fff;text-shadow:0 .25vh .7vh rgba(0,0,0,.6),0 .9vh 3.4vh rgba(0,0,0,.5),0 0 9vh rgba(0,0,0,.35)}
+        .hl-2{font-size:11vh;font-weight:800;letter-spacing:-.04em;line-height:1.12;margin-top:.6vh;color:#fff;text-shadow:0 .25vh .7vh rgba(0,0,0,.6),0 .9vh 3.4vh rgba(0,0,0,.5),0 0 9vh rgba(0,0,0,.35)}
         .w{display:inline-block;margin:0 .13em;opacity:0;animation:wordIn 1.2s cubic-bezier(.2,.9,.25,1) both}
         @keyframes wordIn{0%{opacity:0;transform:translateY(2.6vh);filter:blur(8px)}100%{opacity:1;transform:none;filter:blur(0)}}
         .hl-city{display:inline-block;margin-left:.13em;color:#9ED4FF;opacity:0;
-          text-shadow:0 0 3vh rgba(59,140,255,.75),0 .5vh 3vh rgba(0,0,0,.6);
+          text-shadow:0 .25vh .7vh rgba(0,0,0,.6),0 .9vh 3.4vh rgba(0,0,0,.5),0 0 4vh rgba(59,140,255,.7);
           animation:cityIn 1.9s cubic-bezier(.16,1,.3,1) both}
         @keyframes cityIn{0%{opacity:0;transform:scale(1.28);filter:blur(16px);letter-spacing:.18em}
           60%{opacity:1;filter:blur(0)}100%{opacity:1;transform:none;letter-spacing:-.04em}}
@@ -668,13 +683,13 @@ export default function OfficeTV({ office }) {
         @keyframes agIn{0%{opacity:0;transform:scale(.92);filter:blur(12px)}100%{opacity:1;transform:none;filter:blur(0)}}
         @keyframes agOut{to{opacity:0;transform:scale(1.03);filter:blur(8px)}}
         .agent-scrim{position:absolute;left:50%;top:50%;width:64vw;height:84vh;transform:translate(-50%,-50%);z-index:-1;border-radius:4.4vh;
-          background:linear-gradient(180deg,#0B1330 0%,#060B1D 100%);border:1px solid rgba(140,190,255,.28);
-          box-shadow:0 0 0 1px rgba(59,140,255,.08) inset,0 3vh 10vh rgba(0,0,0,.45),0 0 8vh rgba(59,140,255,.18)}
+          background:linear-gradient(180deg,rgba(10,18,44,.58) 0%,rgba(4,9,26,.66) 100%);border:1px solid rgba(160,200,255,.32);
+          box-shadow:0 0 0 1px rgba(255,255,255,.05) inset,0 3vh 10vh rgba(0,0,0,.35),0 0 8vh rgba(59,140,255,.16)}
         .ag-avwrap{position:relative;width:28vh;height:28vh;display:flex;align-items:center;justify-content:center}
         .ag-avwrap .pop-halo{width:58vh;height:58vh;margin:-29vh 0 0 -29vh}
         .ag-av{position:relative;width:26vh;height:26vh;font-size:7vh;border:.8vh solid rgba(12,18,40,.9);
           box-shadow:0 0 6vh rgba(59,140,255,.65),0 0 14vh rgba(46,120,240,.4)}
-        .ag-name{font-size:8vh;font-weight:800;letter-spacing:-.04em;line-height:1;margin-top:4.6vh;color:#fff;text-shadow:0 .6vh 3vh rgba(0,0,0,.6)}
+        .ag-name{font-size:8vh;font-weight:800;letter-spacing:-.04em;line-height:1.15;margin-top:4.2vh;color:#fff;text-shadow:0 .25vh .7vh rgba(0,0,0,.6),0 .9vh 3.4vh rgba(0,0,0,.5),0 0 9vh rgba(0,0,0,.35)}
         .ag-amt{font-size:13vh;font-weight:800;letter-spacing:-.05em;line-height:1.05;margin-top:1.4vh;padding:0 .12em;
           background:linear-gradient(180deg,#B7FFD9 0%,#34D399 60%,#1E9E6E 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
           filter:drop-shadow(0 0 3vh rgba(52,211,153,.45))}
@@ -694,7 +709,7 @@ export default function OfficeTV({ office }) {
         .bell:hover,.bell:focus-visible{opacity:1;color:var(--ice);outline:none}
         @keyframes bellNudge{0%,86%,100%{transform:rotate(0)}90%{transform:rotate(-12deg)}94%{transform:rotate(10deg)}}
         .title-period{display:flex;align-items:center;gap:1.4vw;margin-top:.5vh}
-        .date{font-size:3.6vh;font-weight:600;letter-spacing:-.03em;line-height:1.15;white-space:nowrap;
+        .date{font-size:3.6vh;font-weight:600;letter-spacing:-.03em;line-height:1.3;padding-bottom:.08em;white-space:nowrap;
           background:linear-gradient(90deg,#D6ECFF 0%,#86C3FF 40%,#3B8CFF 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
         .head-right{display:flex;flex-direction:column;align-items:flex-end;gap:1.1vh;flex:none}
         .toggle{display:flex;padding:.3vh;border-radius:99px;background:rgba(255,255,255,.035);border:1px solid rgba(160,190,255,.12)}
@@ -712,7 +727,8 @@ export default function OfficeTV({ office }) {
         @keyframes viewIn{from{opacity:0;transform:translateY(1.2vh)}to{opacity:1;transform:none}}
 
         /* Top 3 */
-        .podium{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6vw;height:26vh;margin-bottom:2.2vh}
+        .podium{display:grid;grid-template-columns:repeat(3,1fr);gap:1.6vw;height:27.5vh;margin-bottom:2vh}
+        .pod > *{flex-shrink:0}   /* never squeeze (and clip) names or amounts */
         .pod{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;
           border-radius:2.4vh;padding:1.6vh 1.6vw;
           background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(160,190,255,.14)}
@@ -737,14 +753,14 @@ export default function OfficeTV({ office }) {
         .pod-1 .pod-ghost{opacity:.45}
         .av{border-radius:50%;overflow:hidden;background:#16224A;display:flex;align-items:center;justify-content:center;color:var(--slate);font-weight:700;flex:none}
         .av img{width:100%;height:100%;object-fit:cover;display:block}
-        .pod-av{width:8.6vh;height:8.6vh;font-size:2.8vh;box-shadow:0 0 0 .45vh var(--accent,#fff),0 1.2vh 3vh rgba(0,0,0,.5)}
+        .pod-av{width:8.2vh;height:8.2vh;font-size:2.7vh;box-shadow:0 0 0 .45vh var(--accent,#fff),0 1.2vh 3vh rgba(0,0,0,.5)}
         .pod-1 .pod-av{box-shadow:0 0 0 .45vh #F5C451,0 0 3.4vh rgba(245,196,81,.6),0 1.2vh 3vh rgba(0,0,0,.5)}
         .pod-2 .pod-av{box-shadow:0 0 0 .45vh #D9E1EE,0 0 2.6vh rgba(217,225,238,.4),0 1.2vh 3vh rgba(0,0,0,.5)}
         .pod-3 .pod-av{box-shadow:0 0 0 .45vh #DB935C,0 0 2.6vh rgba(219,147,92,.45),0 1.2vh 3vh rgba(0,0,0,.5)}
         .pod-rank{font-size:1.15vh;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--accent,var(--slate));opacity:.9;margin-top:1.4vh}
-        .pod-name{font-size:2.9vh;font-weight:600;letter-spacing:-.03em;line-height:1.15;margin-top:.4vh;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .pod-amt{font-size:4.6vh;font-weight:700;letter-spacing:-.045em;line-height:1.1;margin-top:.6vh}
-        .pod-deals{font-size:1.6vh;color:var(--slate);margin-top:.6vh}
+        .pod-name{font-size:2.9vh;font-weight:600;letter-spacing:-.03em;line-height:1.3;padding:0 .1em .04em;margin-top:.1vh;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .pod-amt{font-size:4.5vh;font-weight:700;letter-spacing:-.045em;line-height:1.08;margin-top:.2vh}
+        .pod-deals{font-size:1.6vh;line-height:1.3;color:var(--slate);margin-top:.4vh}
         .pod.is-zero .pod-amt,.pod.is-zero .pod-name{opacity:.45}
 
         /* Ranks 4-13 */
@@ -754,7 +770,7 @@ export default function OfficeTV({ office }) {
         .row:last-child{border-bottom:none}
         .row-rank{width:5vh;font-size:2.1vh;font-weight:600;letter-spacing:-.02em;color:var(--sky)}
         .row-av{width:3.4vh;height:3.4vh;font-size:1.3vh;box-shadow:0 0 0 .22vh rgba(255,255,255,.7)}
-        .row-name{flex:1;min-width:0;font-size:2.35vh;font-weight:560;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .row-name{flex:1;min-width:0;font-size:2.35vh;font-weight:560;letter-spacing:-.02em;line-height:1.4;padding-bottom:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .row-deals{font-size:1.6vh;color:var(--slate);white-space:nowrap}
         .row-amt{min-width:13vh;text-align:right;font-size:2.55vh;font-weight:650;letter-spacing:-.035em}
         .row.is-zero{opacity:.4}
@@ -959,7 +975,6 @@ export default function OfficeTV({ office }) {
             <div className="vid-overlay" key={current.key}>
               <div className="vid-shade" />
               <div className="headline">
-                <div className="hl-band" />
                 <div className="hl-logos">
                   <img src={BP_LOGO} alt="The Blueprint Agency" className="hl-logo bp" />
                   <span className="hl-x">×</span>
@@ -973,7 +988,7 @@ export default function OfficeTV({ office }) {
                 </div>
                 <div className="hl-rule bottom" />
               </div>
-              <CashRain seed={current.key} delay={Math.round(current.ms * 0.5)} duration={Math.round(current.ms * 0.5)} total={110} foreground={3} />
+              <CashRain seed={current.key} delay={Math.round(current.ms * 0.5)} duration={Math.round(current.ms * 0.5)} total={170} foreground={4} untilEnd avoidCenter />
               <div className="agent">
                 <div className="agent-scrim" />
                 <div className="ag-avwrap">
