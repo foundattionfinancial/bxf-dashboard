@@ -487,6 +487,8 @@ export default function TV() {
     <>
       <Head>
         <title>South Florida Office — Leaderboard</title>
+        <link rel="icon" type="image/png" href={BP_LOGO} />
+        <link rel="apple-touch-icon" href={BP_LOGO} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300..800&display=swap" rel="stylesheet" />
