@@ -1,9 +1,7 @@
 // pages/floridatv.js — South Florida Office TV leaderboard
 // Open on the TV:  https://blueprintagencysales.io/floridatv  and sign in once with the
 // South Florida Leaderboard Discord account (stays signed in).  Shift+L signs out.
-// Optional:  &period=week   (open on the weekly board; default is today)
-//            &test=1               (fires a sample celebration on load)
-// Press T on a keyboard connected to the TV to fire a sample celebration.
+// Optional:  &period=day    (open on the daily board; default is the week)
 
 import Head from 'next/head';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -275,19 +273,18 @@ export default function TV() {
   const router = useRouter();
   const [params, setParams] = useState(null);
   const [shown, setShown] = useState(null);       // data currently on screen
-  const [view, setView] = useState('today');
+  const [view, setView] = useState('week');
   const [current, setCurrent] = useState(null);   // active celebration
   const [hotId, setHotId] = useState(null);
   const [err, setErr] = useState(null);
   const [auth, setAuth] = useState(null);         // null | { code, error }
-  const [soundState, setSoundState] = useState('checking'); // checking | locked | on | none
 
   const dataRef = useRef(null);
   const seenRef = useRef(new Set());
   const bootedRef = useRef(false);
   const busyRef = useRef(false);
   const queueRef = useRef([]);
-  const viewRef = useRef('today');
+  const viewRef = useRef('week');
   const rectsRef = useRef(new Map());
   const skipFlipRef = useRef(false);
 
@@ -300,8 +297,7 @@ export default function TV() {
     setParams({
       key: String(router.query.key || ''),
       error: String(router.query.error || ''),
-      period: router.query.period === 'week' ? 'week' : 'today',
-      test: router.query.test === '1',
+      period: ['day', 'today'].includes(String(router.query.period)) ? 'today' : 'week',
     });
   }, [router.isReady, router.query]);
 
@@ -386,21 +382,14 @@ export default function TV() {
     return () => clearInterval(i);
   }, [params, poll]);
 
-  // Sale sound: try to start right away (works if the browser allows autoplay),
-  // otherwise wait for the first click / key press on the page
+  // Sale sound: starts right away if the browser allows it, otherwise the first
+  // click or key press on the page turns it on (no on-screen prompt)
   useEffect(() => {
-    let alive = true;
-    const refresh = async () => {
-      const on = await unlockSound();
-      if (!alive) return;
-      setSoundState(!sound.buffer ? 'none' : on ? 'on' : 'locked');
-    };
-    refresh();
-    const onGesture = () => { refresh(); };
+    unlockSound();
+    const onGesture = () => { unlockSound(); };
     window.addEventListener('pointerdown', onGesture);
     window.addEventListener('keydown', onGesture);
     return () => {
-      alive = false;
       window.removeEventListener('pointerdown', onGesture);
       window.removeEventListener('keydown', onGesture);
     };
@@ -434,27 +423,6 @@ export default function TV() {
     window.addEventListener('mousemove', wake);
     return () => { window.removeEventListener('mousemove', wake); clearTimeout(t); };
   }, []);
-
-  // Test celebration: ?test=1 or press T
-  const fireTest = useCallback(() => {
-    const d = dataRef.current;
-    const pick = d?.boards?.[viewRef.current]?.board?.[0];
-    if (!pick) return;
-    celebrate([{ id: `test-${Date.now()}`, discord_id: pick.discord_id, name: pick.name, avatar: pick.avatar, amount: 1500, posted_at: new Date().toISOString() }]);
-  }, [celebrate]);
-
-  useEffect(() => {
-    const onKey = e => { if (e.key === 't' || e.key === 'T') unlockSound().then(() => fireTest()); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [fireTest]);
-
-  useEffect(() => {
-    if (!params?.test || !shown) return;
-    const t = setTimeout(fireTest, 2500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params?.test, !!shown]);
 
   // FLIP: agents glide to their new rank when the board updates
   useLayoutEffect(() => {
@@ -657,11 +625,6 @@ export default function TV() {
         .message{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.6vh;text-align:center;padding:0 10vw}
         .message h1{font-size:4.4vh;font-weight:800;letter-spacing:-.03em}
         .message p{font-size:2.4vh;color:var(--slate);max-width:70ch}
-        .sound-prompt{position:fixed;left:50%;bottom:3vh;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:1.2vh;
-          padding:1.4vh 2.8vh;border-radius:99px;border:1px solid rgba(160,190,255,.3);background:rgba(10,18,40,.92);color:var(--ice);
-          font:inherit;font-size:2vh;font-weight:600;letter-spacing:-.01em;cursor:pointer;box-shadow:0 1vh 4vh rgba(0,0,0,.5);
-          animation:promptPulse 2.4s ease-in-out infinite}
-        @keyframes promptPulse{0%,100%{box-shadow:0 1vh 4vh rgba(0,0,0,.5),0 0 0 0 rgba(59,140,255,.0)}50%{box-shadow:0 1vh 4vh rgba(0,0,0,.5),0 0 0 .6vh rgba(59,140,255,.35)}}
         .signin{background:radial-gradient(70% 55% at 50% 40%, rgba(30,70,160,.25) 0%, transparent 70%),linear-gradient(180deg,#0A1226,#04060F)}
         .signin .logo-tile.big{width:16vh;height:16vh;border-radius:3.4vh;margin-bottom:1.4vh}
         .signin h1{font-size:6vh;font-weight:700;letter-spacing:-.045em}
@@ -716,8 +679,8 @@ export default function TV() {
                 <div className="title-period">
                   <span className="date">{board.label}</span>
                   <div className="toggle" role="tablist" aria-label="Leaderboard period">
-                    <button role="tab" aria-selected={view === 'today'} className={view === 'today' ? 'on' : ''} onClick={() => switchView('today')}>Day</button>
                     <button role="tab" aria-selected={view === 'week'} className={view === 'week' ? 'on' : ''} onClick={() => switchView('week')}>Week</button>
+                    <button role="tab" aria-selected={view === 'today'} className={view === 'today' ? 'on' : ''} onClick={() => switchView('today')}>Day</button>
                   </div>
                 </div>
               </div>
@@ -743,13 +706,6 @@ export default function TV() {
             </section>
           </main>
         </div>
-      )}
-
-      {shown && soundState === 'locked' && (
-        <button className="sound-prompt" onClick={() => unlockSound().then(on => setSoundState(on ? 'on' : 'locked'))}>
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
-          Click anywhere to turn on the sale sound
-        </button>
       )}
 
       {current && (
