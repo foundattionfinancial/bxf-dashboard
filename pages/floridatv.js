@@ -278,6 +278,7 @@ export default function TV() {
   const [hotId, setHotId] = useState(null);
   const [err, setErr] = useState(null);
   const [auth, setAuth] = useState(null);         // null | { code, error }
+  const [soundBlocked, setSoundBlocked] = useState(false); // true = browser is holding sound until someone clicks
 
   const dataRef = useRef(null);
   const seenRef = useRef(new Set());
@@ -382,14 +383,21 @@ export default function TV() {
     return () => clearInterval(i);
   }, [params, poll]);
 
-  // Sale sound: starts right away if the browser allows it, otherwise the first
-  // click or key press on the page turns it on (no on-screen prompt)
+  // Sale sound: starts right away if the browser allows it. If the browser is
+  // holding sound back, a small bell appears next to the office name; one click
+  // (on the bell or anywhere) turns sound on until the page is restarted.
   useEffect(() => {
-    unlockSound();
-    const onGesture = () => { unlockSound(); };
+    let alive = true;
+    const check = async () => {
+      const on = await unlockSound();
+      if (alive) setSoundBlocked(!!sound.buffer && !on);
+    };
+    check();
+    const onGesture = () => { check(); };
     window.addEventListener('pointerdown', onGesture);
     window.addEventListener('keydown', onGesture);
     return () => {
+      alive = false;
       window.removeEventListener('pointerdown', onGesture);
       window.removeEventListener('keydown', onGesture);
     };
@@ -490,6 +498,13 @@ export default function TV() {
         .logo-tile img{width:86%;height:86%;object-fit:contain;filter:drop-shadow(0 0 1.6vh rgba(59,140,255,.45))}
         .eyebrow{font-size:1.45vh;font-weight:700;letter-spacing:.32em;text-transform:uppercase;color:var(--slate);margin-bottom:.9vh}
         .title{font-size:5vh;font-weight:650;letter-spacing:-.042em;line-height:1.02}
+        .title-row{display:flex;align-items:center;gap:1.2vw}
+        .bell{width:4vh;height:4vh;flex:none;display:flex;align-items:center;justify-content:center;padding:.8vh;border-radius:50%;
+          color:var(--slate);background:rgba(255,255,255,.05);border:1px solid rgba(160,190,255,.16);cursor:pointer;opacity:.75;
+          transition:opacity .2s,color .2s;animation:bellNudge 4s ease-in-out infinite}
+        .bell svg{width:100%;height:100%}
+        .bell:hover,.bell:focus-visible{opacity:1;color:var(--ice);outline:none}
+        @keyframes bellNudge{0%,86%,100%{transform:rotate(0)}90%{transform:rotate(-12deg)}94%{transform:rotate(10deg)}}
         .title-period{display:flex;align-items:center;gap:1.4vw;margin-top:.5vh}
         .date{font-size:3.6vh;font-weight:600;letter-spacing:-.03em;line-height:1.15;
           background:linear-gradient(90deg,#D6ECFF 0%,#86C3FF 40%,#3B8CFF 85%);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -675,7 +690,19 @@ export default function TV() {
               <div className="logo-tile"><img src={BP_LOGO} alt="The Blueprint Agency" /></div>
               <div>
                 <div className="eyebrow">The Blueprint Agency</div>
-                <div className="title">South Florida Office</div>
+                <div className="title-row">
+                  <div className="title">South Florida Office</div>
+                  {soundBlocked && (
+                    <button className="bell" title="Sale sound is off. Click to turn it on." aria-label="Turn on sale sound"
+                      onClick={() => unlockSound().then(on => setSoundBlocked(!on))}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3a6 6 0 0 0-6 6v3.6l-1.6 2.7A1 1 0 0 0 5.3 17h13.4a1 1 0 0 0 .9-1.7L18 12.6V9a6 6 0 0 0-6-6z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/>
+                        <path d="M10 19.5a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+                        <path d="M4 4l16 16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <div className="title-period">
                   <span className="date">{board.label}</span>
                   <div className="toggle" role="tablist" aria-label="Leaderboard period">
